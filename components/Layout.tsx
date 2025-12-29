@@ -10,7 +10,9 @@ import {
   ChevronRight,
   User as UserIcon,
   ShieldAlert,
-  Wallet
+  Wallet,
+  Globe,
+  CloudCheck
 } from 'lucide-react';
 import { User } from '../types';
 import { SYSTEM_CONFIG } from '../constants';
@@ -73,8 +75,13 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout }) => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-100 mt-auto">
-          <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-3 mb-4">
+        <div className="p-4 border-t border-gray-100 mt-auto space-y-4">
+          <div className="px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Cloud Connected</span>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
               <UserIcon size={20} />
             </div>
