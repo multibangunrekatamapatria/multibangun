@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-// Fix: Added Briefcase and CheckCircle2 to imports from lucide-react
 import { 
   Plus, 
   Search, 
@@ -18,11 +17,13 @@ import {
   Tag,
   Info,
   Briefcase,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
 import { LETTER_TYPES } from '../constants';
 import { getLetters, saveLetter, updateLetter } from '../services/dbService';
+import { syncToGoogle, fileToBase64 } from '../services/googleService';
 
 const LetterArchive: React.FC = () => {
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -31,6 +32,7 @@ const LetterArchive: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Letter>>({
@@ -75,7 +77,6 @@ const LetterArchive: React.FC = () => {
     const newLetter = saveLetter(formData);
     setLetters([newLetter, ...letters]);
     setIsModalOpen(false);
-    // Reset form
     setFormData({
       date: new Date().toISOString().split('T')[0],
       companyName: '',
@@ -91,36 +92,54 @@ const LetterArchive: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleFileUpload = (letterId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (letterId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const letter = letters.find(l => l.id === letterId);
     if (!letter) return;
 
-    // Simulate upload and rename
-    const fileIndex = letter.files.length + 1;
-    const sequenceStr = letter.sequence.toString().padStart(3, '0');
-    const baseName = `${sequenceStr} - ${letter.companyName} - ${letter.subject}`;
-    const fileName = letter.files.length === 0 ? baseName : `${baseName} - ${fileIndex}`;
-    
-    const newFile = {
-      name: fileName,
-      url: '#', // In real app, this would be a Google Drive link
-      uploadedAt: new Date().toISOString()
-    };
+    setIsUploading(true);
 
-    const updated = updateLetter(letterId, {
-      files: [...letter.files, newFile]
-    });
-    
-    setLetters(letters.map(l => l.id === letterId ? updated : l));
-    if (selectedLetter?.id === letterId) {
-      setSelectedLetter(updated);
+    try {
+      const fileIndex = letter.files.length + 1;
+      const sequenceStr = letter.sequence.toString().padStart(3, '0');
+      const baseName = `${sequenceStr} - ${letter.companyName} - ${letter.subject}`;
+      const fileName = letter.files.length === 0 ? baseName : `${baseName} - ${fileIndex}`;
+      
+      const base64 = await fileToBase64(file);
+
+      // Send to Google Drive
+      await syncToGoogle({
+        action: 'uploadFile',
+        fileName: fileName,
+        fileData: base64,
+        mimeType: file.type,
+        letterNumber: letter.letterNumber
+      });
+
+      const newFile = {
+        name: fileName,
+        url: '#SyncedToDrive',
+        uploadedAt: new Date().toISOString()
+      };
+
+      const updated = updateLetter(letterId, {
+        files: [...letter.files, newFile]
+      });
+      
+      setLetters(letters.map(l => l.id === letterId ? updated : l));
+      if (selectedLetter?.id === letterId) {
+        setSelectedLetter(updated);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Upload failed. Check your Google Integration settings.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  // Auto-generate subject for PWRN
   useEffect(() => {
     if (formData.typeCode === LetterTypeCode.PWRN && formData.materialInquired) {
       setFormData(prev => ({
@@ -146,7 +165,6 @@ const LetterArchive: React.FC = () => {
         </button>
       </div>
 
-      {/* Filters */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -173,7 +191,6 @@ const LetterArchive: React.FC = () => {
         </div>
       </div>
 
-      {/* Letters List */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -244,7 +261,6 @@ const LetterArchive: React.FC = () => {
         </div>
       </div>
 
-      {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
@@ -260,7 +276,6 @@ const LetterArchive: React.FC = () => {
             
             <form onSubmit={handleCreate} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Basic Fields */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
                     <Calendar size={12} /> Date Created
@@ -314,7 +329,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               </div>
 
-              {/* Conditional Fields: Quotation (PWRN) */}
               {formData.typeCode === LetterTypeCode.PWRN && (
                 <div className="bg-blue-50 p-4 rounded-2xl space-y-4 border border-blue-100">
                   <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2">
@@ -345,7 +359,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               )}
 
-              {/* Conditional Fields: Tugas */}
               {formData.typeCode === LetterTypeCode.TUGAS && (
                 <div className="bg-indigo-50 p-4 rounded-2xl space-y-4 border border-indigo-100">
                   <h4 className="text-sm font-bold text-indigo-700 flex items-center gap-2">
@@ -380,7 +393,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               )}
 
-              {/* Conditional Fields: SURDUK */}
               {formData.typeCode === LetterTypeCode.SURDUK && (
                 <div className="bg-emerald-50 p-4 rounded-2xl space-y-4 border border-emerald-100">
                   <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-2">
@@ -432,7 +444,6 @@ const LetterArchive: React.FC = () => {
         </div>
       )}
 
-      {/* Detail/Edit/Archive Modal */}
       {selectedLetter && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
           <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
@@ -471,8 +482,6 @@ const LetterArchive: React.FC = () => {
                   <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</h4>
                   <p className="text-gray-700 leading-relaxed">{selectedLetter.subject}</p>
                 </div>
-
-                {/* Additional dynamic info */}
                 {selectedLetter.projectName && (
                   <div>
                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Project</h4>
@@ -496,9 +505,7 @@ const LetterArchive: React.FC = () => {
                             <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
                             <p className="text-[10px] text-gray-400">{new Date(f.uploadedAt).toLocaleString()}</p>
                           </div>
-                          <a href={f.url} className="text-blue-600 hover:text-blue-800 shrink-0">
-                            <ExternalLink size={16} />
-                          </a>
+                          <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">In Drive</span>
                         </div>
                       ))}
                     </div>
@@ -510,11 +517,12 @@ const LetterArchive: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="mt-6">
+                  <div className="mt-6 relative">
                     <label className="block">
                       <span className="sr-only">Choose file</span>
                       <input 
                         type="file" 
+                        disabled={isUploading}
                         onChange={(e) => handleFileUpload(selectedLetter.id, e)}
                         className="block w-full text-sm text-gray-500
                           file:mr-4 file:py-2.5 file:px-4
@@ -522,9 +530,14 @@ const LetterArchive: React.FC = () => {
                           file:text-sm file:font-bold
                           file:bg-blue-600 file:text-white
                           hover:file:bg-blue-700
-                          transition-all cursor-pointer"
+                          disabled:opacity-50 transition-all cursor-pointer"
                       />
                     </label>
+                    {isUploading && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
+                        <Loader2 size={14} className="animate-spin" /> Syncing with Google Drive...
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
