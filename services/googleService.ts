@@ -3,57 +3,66 @@ import { SYSTEM_CONFIG } from '../constants';
 import { Letter } from '../types';
 
 /**
- * Sends data to the Google Apps Script.
- * Uses a standard POST request. Note: Apps Script often returns a 302 redirect.
+ * Sends data to the Google Apps Script using POST.
  */
 export const syncToGoogle = async (payload: any) => {
   const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
   const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
   const folderId = SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
 
-  console.log(`[GoogleSync] Sending ${payload.action}...`);
+  console.log(`[GoogleSync] Attempting ${payload.action}...`);
 
   try {
+    // We use text/plain to avoid CORS pre-flight triggers in simple Apps Script setups
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      mode: 'no-cors', // Standard for Public Apps Scripts to avoid pre-flight CORS issues
+      mode: 'no-cors', 
       headers: {
         'Content-Type': 'text/plain',
       },
       body: JSON.stringify({
         ...payload,
         sheetId,
-        folderId
+        folderId,
+        timestamp: new Date().toISOString()
       }),
     });
     
-    // With no-cors, we can't see the response body, but the request is sent.
-    return { status: 'sent' };
+    // Note: With no-cors we can't read the response body, but the request is fired.
+    return { status: 'dispatched' };
   } catch (error) {
-    console.error('[GoogleSync] Error:', error);
+    console.error('[GoogleSync] Request failed:', error);
     throw error;
   }
 };
 
 /**
- * Fetches letters from the Google Sheet.
+ * Fetches letters from the Google Sheet via GET.
  */
 export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
   const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
   const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
 
   try {
+    // Adding a cache-buster timestamp
     const url = `${scriptUrl}?action=getLetters&sheetId=${sheetId}&t=${Date.now()}`;
-    console.log('[GoogleSync] Fetching cloud data...');
+    console.log('[GoogleSync] Fetching database from cloud...');
     
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Network response was not ok');
+    const response = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Cloud Error: ${response.statusText}`);
+    }
     
     const data = await response.json();
-    console.log(`[GoogleSync] Successfully retrieved ${data.length || 0} records.`);
+    console.log(`[GoogleSync] Cloud data loaded: ${data.length} records found.`);
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('[GoogleSync] Fetch Error:', error);
+    console.error('[GoogleSync] Critical Fetch Error:', error);
+    // Return empty array so app can still function, but warn the user
     return [];
   }
 };
