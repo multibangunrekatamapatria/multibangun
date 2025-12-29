@@ -10,6 +10,10 @@ export const getLetters = (): Letter[] => {
   return data ? JSON.parse(data) : [];
 };
 
+/**
+ * Merges cloud data into local storage. 
+ * Important: This ensures Incognito sessions get the latest cloud state.
+ */
 export const setLetters = (letters: Letter[]) => {
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
 };
@@ -21,12 +25,19 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year);
+  // Find letters for the same year to determine next sequence number
+  const yearLetters = letters.filter(l => {
+    const lDate = new Date(l.date);
+    return lDate.getFullYear() === year;
+  });
   
   let sequence: number;
   if (yearLetters.length > 0) {
+    // Find the actual highest number used in the cloud/local DB for this year
     sequence = Math.max(...yearLetters.map(l => l.sequence || 0)) + 1;
   } else {
+    // If it's the first letter of the year
+    // Rule: 2025 starts at 341, others start at 001
     sequence = (year === 2025) ? 341 : 1;
   }
 
@@ -52,7 +63,7 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const updatedLetters = [newLetter, ...letters];
   localStorage.setItem(LETTERS_KEY, JSON.stringify(updatedLetters));
   
-  // Sync to Google
+  // Sync to Google Sheets
   syncToGoogle({
     action: 'saveLetter',
     data: newLetter
@@ -66,16 +77,18 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   const index = letters.findIndex(l => l.id === id);
   if (index === -1) throw new Error('Letter not found');
   
-  const updatedLetter = { ...letters[index], ...updates };
+  const originalLetter = letters[index];
+  const updatedLetter = { ...originalLetter, ...updates };
   
-  // Recalculate letter number if date or type changed
-  const dateObj = new Date(updatedLetter.date);
-  const year = dateObj.getFullYear();
-  const month = dateObj.getMonth() + 1;
-  const romanMonth = ROMAN_MONTHS[month];
-  const sequenceStr = updatedLetter.sequence.toString().padStart(3, '0');
-  
-  updatedLetter.letterNumber = `${sequenceStr}/MRP/${updatedLetter.typeCode}/${romanMonth}/${year}`;
+  // Recalculate letter number only if type or date changed
+  if (updates.date || updates.typeCode) {
+    const dateObj = new Date(updatedLetter.date);
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+    const romanMonth = ROMAN_MONTHS[month];
+    const sequenceStr = updatedLetter.sequence.toString().padStart(3, '0');
+    updatedLetter.letterNumber = `${sequenceStr}/MRP/${updatedLetter.typeCode}/${romanMonth}/${year}`;
+  }
   
   letters[index] = updatedLetter;
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
