@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { KeyRound, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { KeyRound, User as UserIcon, ShieldCheck, RefreshCw } from 'lucide-react';
 import { getUsers } from '../services/userService';
+import { SYSTEM_CONFIG } from '../constants';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -16,12 +17,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const users = getUsers();
-    const foundUser = users.find(u => u.username === username && u.password === password);
+    
+    const foundUser = users.find(u => 
+      u.username.toLowerCase() === username.toLowerCase() && 
+      u.password === password
+    );
     
     if (foundUser) {
       onLogin(foundUser);
     } else {
-      setError('Invalid username or password');
+      setError('Invalid username or password. Please try again.');
+    }
+  };
+
+  const handleForceReset = () => {
+    if (window.confirm('This will clear all local settings and reset default passwords. Continue?')) {
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -33,13 +45,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 text-white rounded-2xl mb-4 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-300">
               <ShieldCheck size={40} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">MRP Office Portal</h1>
-            <p className="text-gray-500 mt-2 text-sm">PT MULTIBANGUN REKATAMA PATRIA</p>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">{SYSTEM_CONFIG.PORTAL_NAME}</h1>
+            <p className="text-gray-500 mt-1 text-sm font-medium">by {SYSTEM_CONFIG.FULL_COMPANY_NAME}</p>
           </div>
           
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {error && (
-              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm font-medium border border-red-100">
+              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm font-medium border border-red-100 animate-shake">
                 {error}
               </div>
             )}
@@ -53,7 +65,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3.5 px-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900"
-                  placeholder="Enter your username"
+                  placeholder="Enter username"
                   required
                 />
               </div>
@@ -81,8 +93,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               Sign In to Portal
             </button>
 
-            <div className="text-center">
-              <a href="#" className="text-sm text-blue-600 hover:underline font-medium">Forgot your password?</a>
+            <div className="text-center pt-2">
+              <button 
+                type="button"
+                onClick={handleForceReset}
+                className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1 mx-auto transition-colors"
+              >
+                <RefreshCw size={12} />
+                Login issues? Click to reset application.
+              </button>
             </div>
           </form>
           
