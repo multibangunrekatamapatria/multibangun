@@ -10,6 +10,11 @@ export const getLetters = (): Letter[] => {
   return data ? JSON.parse(data) : [];
 };
 
+// This allows the app to merge cloud data into local storage
+export const setLetters = (letters: Letter[]) => {
+  localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
+};
+
 export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const letters = getLetters();
   
@@ -17,18 +22,16 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  // Filter letters belonging to the selected year
+  // Filter letters belonging to the selected year to find the next sequence
   const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year);
   
   let sequence: number;
   
   if (yearLetters.length > 0) {
-    // If we already have letters for this year, continue the sequence
-    sequence = Math.max(...yearLetters.map(l => l.sequence)) + 1;
+    // Continue from the highest existing sequence in that year
+    sequence = Math.max(...yearLetters.map(l => l.sequence || 0)) + 1;
   } else {
-    // If this is the first letter of the year:
-    // 2025 starts from 341 to match existing physical records
-    // 2026 and onwards start from 1
+    // First letter of the year
     sequence = (year === 2025) ? 341 : 1;
   }
 
@@ -54,10 +57,10 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const updatedLetters = [newLetter, ...letters];
   localStorage.setItem(LETTERS_KEY, JSON.stringify(updatedLetters));
   
-  // Async sync to Google Sheets
+  // Sync to Google
   syncToGoogle({
     action: 'saveLetter',
-    ...newLetter
+    data: newLetter
   });
 
   return newLetter;
@@ -71,6 +74,13 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   const updatedLetter = { ...letters[index], ...updates };
   letters[index] = updatedLetter;
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
+  
+  syncToGoogle({
+    action: 'updateLetter',
+    id: id,
+    data: updates
+  });
+  
   return updatedLetter;
 };
 
