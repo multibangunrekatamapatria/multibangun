@@ -18,24 +18,28 @@ import {
   Info,
   Briefcase,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Edit3,
+  Save,
+  Trash2
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
 import { LETTER_TYPES } from '../constants';
-import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters } from '../services/dbService';
+import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters, deleteLetter } from '../services/dbService';
 import { syncToGoogle, fileToBase64, fetchLettersFromGoogle } from '../services/googleService';
 
 const LetterArchive: React.FC = () => {
   const [letters, setLetters] = useState<Letter[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Form State
+  // Form State (for Create & Edit)
   const [formData, setFormData] = useState<Partial<Letter>>({
     date: new Date().toISOString().split('T')[0],
     companyName: '',
@@ -56,11 +60,15 @@ const LetterArchive: React.FC = () => {
 
   const loadCloudData = async () => {
     setIsSyncing(true);
-    const cloudLetters = await fetchLettersFromGoogle();
-    if (cloudLetters.length > 0) {
-      setLocalLetters(cloudLetters);
-      setLetters(cloudLetters);
-    } else {
+    try {
+      const cloudLetters = await fetchLettersFromGoogle();
+      if (cloudLetters && cloudLetters.length > 0) {
+        setLocalLetters(cloudLetters);
+        setLetters(cloudLetters);
+      } else {
+        setLetters(getLetters());
+      }
+    } catch (e) {
       setLetters(getLetters());
     }
     setIsSyncing(false);
@@ -86,14 +94,52 @@ const LetterArchive: React.FC = () => {
     const newLetter = saveLetter(formData);
     setLetters([newLetter, ...letters]);
     setIsModalOpen(false);
-    // Reset form
+    resetForm();
+  };
+
+  const resetForm = () => {
     setFormData({
       date: new Date().toISOString().split('T')[0],
       companyName: '',
       requestor: 'Admin',
       typeCode: LetterTypeCode.MISC,
       subject: '',
+      materialInquired: '',
+      projectName: '',
+      startDate: '',
+      transportation: '',
+      installerNames: '',
+      contactPersonName: '',
+      contactPersonPhone: '',
+      companyRequested: '',
+      picName: '',
+      expirationDate: ''
     });
+  };
+
+  const handleEditInit = () => {
+    if (selectedLetter) {
+      setFormData({ ...selectedLetter });
+      setIsEditing(true);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedLetter) {
+      const updated = updateLetter(selectedLetter.id, formData);
+      setLetters(letters.map(l => l.id === selectedLetter.id ? updated : l));
+      setSelectedLetter(updated);
+      setIsEditing(false);
+    }
+  };
+
+  const handleDeleteLetter = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this record? This action will sync to cloud.')) {
+      deleteLetter(id);
+      setLetters(letters.filter(l => l.id !== id));
+      setSelectedLetter(null);
+    }
   };
 
   const handleCopy = (num: string, id: string) => {
@@ -143,26 +189,26 @@ const LetterArchive: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
-      alert('Upload failed. Check your Google Integration settings.');
+      alert('Upload failed. Check your connectivity.');
     } finally {
       setIsUploading(false);
     }
   };
 
   useEffect(() => {
-    if (formData.typeCode === LetterTypeCode.PWRN && formData.materialInquired) {
+    if (formData.typeCode === LetterTypeCode.PWRN && formData.materialInquired && !isEditing) {
       setFormData(prev => ({
         ...prev,
         subject: `Surat Penawaran Harga Material ${formData.materialInquired}`
       }));
     }
-  }, [formData.typeCode, formData.materialInquired]);
+  }, [formData.typeCode, formData.materialInquired, isEditing]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Letter Archive</h1>
+          <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Letter Archive</h1>
           <p className="text-sm text-gray-500">Auto-numbering & Google Workspace Sync.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -170,12 +216,12 @@ const LetterArchive: React.FC = () => {
             onClick={loadCloudData}
             disabled={isSyncing}
             className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-gray-200"
-            title="Sync with Google Sheet"
+            title="Force Sync with Cloud"
           >
             <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
           </button>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all"
           >
             <Plus size={20} />
@@ -231,12 +277,12 @@ const LetterArchive: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredLetters.map((l) => (
-                  <tr key={l.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr key={l.id} className="hover:bg-gray-50 transition-colors group cursor-pointer" onClick={() => setSelectedLetter(l)}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-sm font-bold text-gray-900">{l.letterNumber}</span>
                         <button 
-                          onClick={() => handleCopy(l.letterNumber, l.id)}
+                          onClick={(e) => { e.stopPropagation(); handleCopy(l.letterNumber, l.id); }}
                           className="text-gray-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100"
                         >
                           {copiedId === l.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -265,7 +311,6 @@ const LetterArchive: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 
-                        onClick={() => setSelectedLetter(l)}
                         className="text-blue-600 hover:text-blue-800 text-sm font-bold flex items-center gap-1 ml-auto"
                       >
                         Details <ExternalLink size={14} />
@@ -474,13 +519,33 @@ const LetterArchive: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
           <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
             <div className="bg-gray-900 p-8 text-white relative">
-              <button 
-                onClick={() => setSelectedLetter(null)} 
-                className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={24} />
-              </button>
-              <p className="text-blue-400 font-mono text-sm mb-2 tracking-widest uppercase">Archive Detail</p>
+              <div className="absolute top-6 right-6 flex items-center gap-2">
+                {!isEditing && (
+                  <>
+                    <button 
+                      onClick={handleEditInit} 
+                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-blue-400"
+                      title="Edit Record"
+                    >
+                      <Edit3 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteLetter(selectedLetter.id)} 
+                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-red-400"
+                      title="Delete Record"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </>
+                )}
+                <button 
+                  onClick={() => { setSelectedLetter(null); setIsEditing(false); }} 
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <p className="text-blue-400 font-mono text-sm mb-2 tracking-widest uppercase">{isEditing ? 'Editing Record' : 'Archive Detail'}</p>
               <h3 className="text-3xl font-black">{selectedLetter.letterNumber}</h3>
               <div className="mt-6 flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
@@ -494,84 +559,127 @@ const LetterArchive: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Company/Institution</h4>
-                  <p className="text-lg font-bold text-gray-900">{selectedLetter.companyName}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Requestor</h4>
-                  <p className="text-gray-900 font-medium">{selectedLetter.requestor}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</h4>
-                  <p className="text-gray-700 leading-relaxed">{selectedLetter.subject}</p>
-                </div>
-                {selectedLetter.projectName && (
-                  <div>
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Project</h4>
-                    <p className="text-gray-700 font-medium">{selectedLetter.projectName}</p>
+            {isEditing ? (
+              <form onSubmit={handleUpdate} className="p-8 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Date Created</label>
+                    <input type="date" required value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
                   </div>
-                )}
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Letter Type</label>
+                    <select required value={formData.typeCode} onChange={(e) => setFormData({...formData, typeCode: e.target.value as LetterTypeCode})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                      {LETTER_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Institution/Recipient</label>
+                    <input type="text" required value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Requestor</label>
+                    <input type="text" required value={formData.requestor} onChange={(e) => setFormData({...formData, requestor: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
+                  </div>
+                </div>
 
-              <div className="space-y-6">
-                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <FileUp size={18} className="text-blue-600" />
-                    Archived Soft Copies
-                  </h4>
-                  
-                  {selectedLetter.files.length > 0 ? (
-                    <div className="space-y-3">
-                      {selectedLetter.files.map((f, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
-                          <div className="flex-1 min-w-0 pr-4">
-                            <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
-                            <p className="text-[10px] text-gray-400">{new Date(f.uploadedAt).toLocaleString()}</p>
-                          </div>
-                          <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">In Drive</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
-                      <AlertCircle className="mx-auto text-amber-500 mb-2" size={24} />
-                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Missing Signed Copy</p>
-                      <p className="text-[10px] text-amber-600 mt-1">Upload the scanned version below.</p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Letter Subject</label>
+                  <textarea required rows={2} value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 resize-none" />
+                </div>
+
+                <div className="flex gap-3 justify-end pt-4">
+                  <button type="button" onClick={() => setIsEditing(false)} className="px-6 py-2.5 rounded-xl font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                  <button type="submit" className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all">
+                    <Save size={18} /> Save Changes
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Company/Institution</h4>
+                    <p className="text-lg font-bold text-gray-900">{selectedLetter.companyName}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Requestor</h4>
+                    <p className="text-gray-900 font-medium">{selectedLetter.requestor}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</h4>
+                    <p className="text-gray-700 leading-relaxed">{selectedLetter.subject}</p>
+                  </div>
+                  {selectedLetter.projectName && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Project</h4>
+                      <p className="text-gray-700 font-medium">{selectedLetter.projectName}</p>
                     </div>
                   )}
+                  {selectedLetter.materialInquired && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Material(s)</h4>
+                      <p className="text-gray-700 font-medium">{selectedLetter.materialInquired}</p>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="mt-6 relative">
-                    <label className="block">
-                      <span className="sr-only">Choose file</span>
-                      <input 
-                        type="file" 
-                        disabled={isUploading}
-                        onChange={(e) => handleFileUpload(selectedLetter.id, e)}
-                        className="block w-full text-sm text-gray-500
-                          file:mr-4 file:py-2.5 file:px-4
-                          file:rounded-xl file:border-0
-                          file:text-sm file:font-bold
-                          file:bg-blue-600 file:text-white
-                          hover:file:bg-blue-700
-                          disabled:opacity-50 transition-all cursor-pointer"
-                      />
-                    </label>
-                    {isUploading && (
-                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
-                        <Loader2 size={14} className="animate-spin" /> Syncing with Cloud...
+                <div className="space-y-6">
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <FileUp size={18} className="text-blue-600" />
+                      Archived Soft Copies
+                    </h4>
+                    
+                    {selectedLetter.files.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedLetter.files.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                            <div className="flex-1 min-w-0 pr-4">
+                              <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
+                              <p className="text-[10px] text-gray-400">{new Date(f.uploadedAt).toLocaleString()}</p>
+                            </div>
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">In Drive</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
+                        <AlertCircle className="mx-auto text-amber-500 mb-2" size={24} />
+                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Missing Signed Copy</p>
+                        <p className="text-[10px] text-amber-600 mt-1">Upload the scanned version below.</p>
                       </div>
                     )}
+
+                    <div className="mt-6 relative">
+                      <label className="block">
+                        <span className="sr-only">Choose file</span>
+                        <input 
+                          type="file" 
+                          disabled={isUploading}
+                          onChange={(e) => handleFileUpload(selectedLetter.id, e)}
+                          className="block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2.5 file:px-4
+                            file:rounded-xl file:border-0
+                            file:text-sm file:font-bold
+                            file:bg-blue-600 file:text-white
+                            hover:file:bg-blue-700
+                            disabled:opacity-50 transition-all cursor-pointer"
+                        />
+                      </label>
+                      {isUploading && (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
+                          <Loader2 size={14} className="animate-spin" /> Syncing with Cloud...
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
             
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               <button 
-                onClick={() => setSelectedLetter(null)}
+                onClick={() => { setSelectedLetter(null); setIsEditing(false); }}
                 className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-200 transition-colors"
               >
                 Close View
