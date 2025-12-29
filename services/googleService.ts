@@ -1,23 +1,19 @@
 
 import { SYSTEM_CONFIG } from '../constants';
+import { Letter } from '../types';
 
 export const syncToGoogle = async (payload: any) => {
-  // First try to get from local storage (if admin changed it), otherwise use system default
-  const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
-  const sheetId = localStorage.getItem('mrp_google_sheet_id') || SYSTEM_CONFIG.GOOGLE.SHEET_ID;
-  const folderId = localStorage.getItem('mrp_google_folder_id') || SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
-
-  if (!scriptUrl) {
-    console.warn('Google Script URL is not configured.');
-    return null;
-  }
+  const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
+  const folderId = SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
 
   try {
+    // We use a POST request to send data to the Google Apps Script
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      mode: 'no-cors', 
+      redirect: 'follow', // Crucial for Google Apps Script redirects
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8', // Apps Script handles text/plain best for CORS-less POSTs
       },
       body: JSON.stringify({
         ...payload,
@@ -25,10 +21,30 @@ export const syncToGoogle = async (payload: any) => {
         folderId
       }),
     });
-    return { status: 'sent' };
+    
+    return { status: 'success' };
   } catch (error) {
     console.error('Google Sync Error:', error);
     return null;
+  }
+};
+
+export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
+  const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
+
+  try {
+    // Append action=getLetters to the URL for a GET request
+    const url = `${scriptUrl}?action=getLetters&sheetId=${sheetId}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) throw new Error('Failed to fetch from Google');
+    
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.warn('Could not fetch cloud data, falling back to local storage:', error);
+    return [];
   }
 };
 
