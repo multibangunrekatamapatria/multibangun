@@ -17,10 +17,20 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  const currentYearLetters = letters.filter(l => new Date(l.date).getFullYear() === year);
-  const sequence = (currentYearLetters.length > 0 
-    ? Math.max(...currentYearLetters.map(l => l.sequence)) 
-    : 0) + 1;
+  // Filter letters belonging to the selected year
+  const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year);
+  
+  let sequence: number;
+  
+  if (yearLetters.length > 0) {
+    // If we already have letters for this year, continue the sequence
+    sequence = Math.max(...yearLetters.map(l => l.sequence)) + 1;
+  } else {
+    // If this is the first letter of the year:
+    // 2025 starts from 341 to match existing physical records
+    // 2026 and onwards start from 1
+    sequence = (year === 2025) ? 341 : 1;
+  }
 
   const sequenceStr = sequence.toString().padStart(3, '0');
   const romanMonth = ROMAN_MONTHS[month];
