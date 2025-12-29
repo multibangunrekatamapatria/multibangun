@@ -32,7 +32,7 @@ export const SYSTEM_CONFIG = {
   COMPANY_NAME: 'Multibangun',
   FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
   GOOGLE: {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyxhTOOx7Qwovwb626u4oX_18SBlJR8z8fv1GUX2XrqHx5E-WdRmsBsxURUqAKSIBQfbw/exec',
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyuT4vZaBieVQpemCMpJnawIfMwP0kCzNXofFQBPslsVvu6dXYaXLYiHwVEfAV3eWe-/exec',
     SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
     FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
   }
