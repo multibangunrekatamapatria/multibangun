@@ -25,3 +25,15 @@ export const LETTER_TYPES = [
   { code: LetterTypeCode.SUKET, label: 'Surat Keterangan (SUKET)' },
   { code: LetterTypeCode.MISC, label: 'Others (MISC)' },
 ];
+
+// Global System Configuration - This applies to all users
+export const SYSTEM_CONFIG = {
+  PORTAL_NAME: 'Multiportal',
+  COMPANY_NAME: 'Multibangun',
+  FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
+  GOOGLE: {
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyxhTOOx7Qwovwb626u4oX_18SBlJR8z8fv1GUX2XrqHx5E-WdRmsBsxURUqAKSIBQfbw/exec',
+    SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
+    FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
+  }
+};
