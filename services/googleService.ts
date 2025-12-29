@@ -1,15 +1,21 @@
 
-export const syncToGoogle = async (payload: any) => {
-  const scriptUrl = localStorage.getItem('mrp_google_script_url');
-  const sheetId = localStorage.getItem('mrp_google_sheet_id');
-  const folderId = localStorage.getItem('mrp_google_folder_id');
+import { SYSTEM_CONFIG } from '../constants';
 
-  if (!scriptUrl) return null;
+export const syncToGoogle = async (payload: any) => {
+  // First try to get from local storage (if admin changed it), otherwise use system default
+  const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  const sheetId = localStorage.getItem('mrp_google_sheet_id') || SYSTEM_CONFIG.GOOGLE.SHEET_ID;
+  const folderId = localStorage.getItem('mrp_google_folder_id') || SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
+
+  if (!scriptUrl) {
+    console.warn('Google Script URL is not configured.');
+    return null;
+  }
 
   try {
     const response = await fetch(scriptUrl, {
       method: 'POST',
-      mode: 'no-cors', // Apps Script requires no-cors for simple posts
+      mode: 'no-cors', 
       headers: {
         'Content-Type': 'application/json',
       },
