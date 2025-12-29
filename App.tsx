@@ -10,17 +10,38 @@ import PPUManagement from './pages/PPUManagement';
 import AdminPanel from './pages/AdminPanel';
 import Layout from './components/Layout';
 import { User } from './types';
+import { fetchLettersFromGoogle } from './services/googleService';
+import { setLetters } from './services/dbService';
+import { Loader2, CloudOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncError, setSyncError] = useState(false);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('mrp_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const initApp = async () => {
+      // 1. Check local session
+      const savedUser = localStorage.getItem('mrp_user');
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+
+      // 2. Hydrate from Cloud (Critical for sequence numbering)
+      try {
+        const cloudData = await fetchLettersFromGoogle();
+        if (cloudData && cloudData.length > 0) {
+          setLetters(cloudData);
+        }
+      } catch (err) {
+        console.error("Initial sync failed", err);
+        setSyncError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initApp();
   }, []);
 
   const handleLogin = (user: User) => {
@@ -35,8 +56,17 @@ const App: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 space-y-4">
+        <div className="relative">
+          <Loader2 size={48} className="animate-spin text-blue-600" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-ping"></div>
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-bold text-gray-900 tracking-tight uppercase">Multiportal</p>
+          <p className="text-xs text-gray-400 font-medium">Syncing with Google Master Sheet...</p>
+        </div>
       </div>
     );
   }
