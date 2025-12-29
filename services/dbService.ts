@@ -10,7 +10,6 @@ export const getLetters = (): Letter[] => {
   return data ? JSON.parse(data) : [];
 };
 
-// This allows the app to merge cloud data into local storage
 export const setLetters = (letters: Letter[]) => {
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
 };
@@ -22,16 +21,12 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  // Filter letters belonging to the selected year to find the next sequence
   const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year);
   
   let sequence: number;
-  
   if (yearLetters.length > 0) {
-    // Continue from the highest existing sequence in that year
     sequence = Math.max(...yearLetters.map(l => l.sequence || 0)) + 1;
   } else {
-    // First letter of the year
     sequence = (year === 2025) ? 341 : 1;
   }
 
@@ -72,13 +67,23 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   if (index === -1) throw new Error('Letter not found');
   
   const updatedLetter = { ...letters[index], ...updates };
+  
+  // Recalculate letter number if date or type changed
+  const dateObj = new Date(updatedLetter.date);
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth() + 1;
+  const romanMonth = ROMAN_MONTHS[month];
+  const sequenceStr = updatedLetter.sequence.toString().padStart(3, '0');
+  
+  updatedLetter.letterNumber = `${sequenceStr}/MRP/${updatedLetter.typeCode}/${romanMonth}/${year}`;
+  
   letters[index] = updatedLetter;
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
   
   syncToGoogle({
     action: 'updateLetter',
     id: id,
-    data: updates
+    data: updatedLetter
   });
   
   return updatedLetter;
@@ -88,4 +93,9 @@ export const deleteLetter = (id: string) => {
   const letters = getLetters();
   const filtered = letters.filter(l => l.id !== id);
   localStorage.setItem(LETTERS_KEY, JSON.stringify(filtered));
+  
+  syncToGoogle({
+    action: 'deleteLetter',
+    id: id
+  });
 };
