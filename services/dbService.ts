@@ -1,6 +1,7 @@
 
 import { Letter, LetterTypeCode } from '../types';
 import { ROMAN_MONTHS } from '../constants';
+import { syncToGoogle } from './googleService';
 
 const LETTERS_KEY = 'mrp_letters_db';
 
@@ -12,7 +13,6 @@ export const getLetters = (): Letter[] => {
 export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const letters = getLetters();
   
-  // Calculate next sequence for this year
   const dateObj = new Date(letterData.date || new Date().toISOString());
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
@@ -43,6 +43,13 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
 
   const updatedLetters = [newLetter, ...letters];
   localStorage.setItem(LETTERS_KEY, JSON.stringify(updatedLetters));
+  
+  // Async sync to Google Sheets
+  syncToGoogle({
+    action: 'saveLetter',
+    ...newLetter
+  });
+
   return newLetter;
 };
 
