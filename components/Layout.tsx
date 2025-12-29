@@ -13,6 +13,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { User } from '../types';
+import { SYSTEM_CONFIG } from '../constants';
 
 interface LayoutProps {
   user: User;
@@ -44,8 +45,8 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout }) => {
               M
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 leading-tight">MRP PORTAL</h1>
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Office Management</p>
+              <h1 className="font-bold text-gray-900 leading-tight uppercase tracking-tighter">{SYSTEM_CONFIG.PORTAL_NAME}</h1>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">by {SYSTEM_CONFIG.COMPANY_NAME}</p>
             </div>
           </div>
         </div>
@@ -95,13 +96,14 @@ const Layout: React.FC<LayoutProps> = ({ user, onLogout }) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shrink-0">
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center text-white font-bold">M</div>
+            <span className="font-bold text-gray-900">{SYSTEM_CONFIG.PORTAL_NAME}</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">PT Multibangun Rekatama Patria</p>
-              <p className="text-xs text-gray-500">Jakarta, Indonesia</p>
+              <p className="text-sm font-medium text-gray-900">{SYSTEM_CONFIG.FULL_COMPANY_NAME}</p>
+              <p className="text-xs text-gray-500">Official Office Portal</p>
             </div>
           </div>
         </header>
