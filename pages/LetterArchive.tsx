@@ -10,7 +10,7 @@ import {
   AlertCircle, 
   FileUp,
   X,
-  ChevronDown,
+  RefreshCw,
   Calendar,
   Building2,
   User as UserIcon,
@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
 import { LETTER_TYPES } from '../constants';
-import { getLetters, saveLetter, updateLetter } from '../services/dbService';
-import { syncToGoogle, fileToBase64 } from '../services/googleService';
+import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters } from '../services/dbService';
+import { syncToGoogle, fileToBase64, fetchLettersFromGoogle } from '../services/googleService';
 
 const LetterArchive: React.FC = () => {
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -33,6 +33,7 @@ const LetterArchive: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Letter>>({
@@ -53,13 +54,21 @@ const LetterArchive: React.FC = () => {
     expirationDate: ''
   });
 
-  useEffect(() => {
-    refreshData();
-  }, []);
-
-  const refreshData = () => {
-    setLetters(getLetters());
+  const loadCloudData = async () => {
+    setIsSyncing(true);
+    const cloudLetters = await fetchLettersFromGoogle();
+    if (cloudLetters.length > 0) {
+      setLocalLetters(cloudLetters);
+      setLetters(cloudLetters);
+    } else {
+      setLetters(getLetters());
+    }
+    setIsSyncing(false);
   };
+
+  useEffect(() => {
+    loadCloudData();
+  }, []);
 
   const filteredLetters = useMemo(() => {
     return letters.filter(l => {
@@ -72,11 +81,12 @@ const LetterArchive: React.FC = () => {
     });
   }, [letters, searchTerm, filterType]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const newLetter = saveLetter(formData);
     setLetters([newLetter, ...letters]);
     setIsModalOpen(false);
+    // Reset form
     setFormData({
       date: new Date().toISOString().split('T')[0],
       companyName: '',
@@ -109,7 +119,6 @@ const LetterArchive: React.FC = () => {
       
       const base64 = await fileToBase64(file);
 
-      // Send to Google Drive
       await syncToGoogle({
         action: 'uploadFile',
         fileName: fileName,
@@ -153,16 +162,26 @@ const LetterArchive: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Letter Generator</h1>
-          <p className="text-sm text-gray-500">Manage and archive company correspondence.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Letter Archive</h1>
+          <p className="text-sm text-gray-500">Auto-numbering & Google Workspace Sync.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all"
-        >
-          <Plus size={20} />
-          Generate New Letter
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={loadCloudData}
+            disabled={isSyncing}
+            className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-gray-200"
+            title="Sync with Google Sheet"
+          >
+            <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-100 transition-all"
+          >
+            <Plus size={20} />
+            Generate New Letter
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
@@ -192,73 +211,80 @@ const LetterArchive: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Letter Number</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Recipient</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Subject</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Archive</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredLetters.map((l) => (
-                <tr key={l.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-gray-900">{l.letterNumber}</span>
-                      <button 
-                        onClick={() => handleCopy(l.letterNumber, l.id)}
-                        className="text-gray-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        {copiedId === l.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">{new Date(l.date).toLocaleDateString()}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-gray-900">{l.companyName}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-600 line-clamp-1">{l.subject}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {l.files.length > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">
-                        <Check size={10} /> Signed
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase">
-                        <AlertCircle size={10} /> Missing
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => setSelectedLetter(l)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-bold flex items-center gap-1 ml-auto"
-                    >
-                      Details <ExternalLink size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredLetters.length === 0 && (
+        {isSyncing && letters.length === 0 ? (
+          <div className="p-20 text-center">
+            <Loader2 size={40} className="animate-spin mx-auto text-blue-600 mb-4" />
+            <p className="text-gray-500 font-medium">Fetching database from Google Sheets...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
-                    <FileUp size={48} className="mx-auto mb-4 opacity-10" />
-                    <p className="text-lg">No records found matching your criteria.</p>
-                  </td>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Letter Number</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Recipient</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Subject</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Archive</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Action</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredLetters.map((l) => (
+                  <tr key={l.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm font-bold text-gray-900">{l.letterNumber}</span>
+                        <button 
+                          onClick={() => handleCopy(l.letterNumber, l.id)}
+                          className="text-gray-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          {copiedId === l.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-500">{new Date(l.date).toLocaleDateString()}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-gray-900">{l.companyName}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-600 line-clamp-1">{l.subject}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {l.files.length > 0 ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase">
+                          <Check size={10} /> Signed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase">
+                          <AlertCircle size={10} /> Missing
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => setSelectedLetter(l)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-bold flex items-center gap-1 ml-auto"
+                      >
+                        Details <ExternalLink size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredLetters.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
+                      <FileUp size={48} className="mx-auto mb-4 opacity-10" />
+                      <p className="text-lg">No records found matching your criteria.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
@@ -267,7 +293,7 @@ const LetterArchive: React.FC = () => {
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">New Letter Request</h3>
-                <p className="text-sm text-gray-500">Auto-number will be generated based on current date.</p>
+                <p className="text-sm text-gray-500">Auto-number will follow the latest cloud sequence.</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                 <X size={24} />
@@ -436,7 +462,7 @@ const LetterArchive: React.FC = () => {
                   type="submit"
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-100 transition-all transform hover:-translate-y-0.5"
                 >
-                  Generate Letter Number
+                  Generate & Sync Letter
                 </button>
               </div>
             </form>
@@ -454,7 +480,7 @@ const LetterArchive: React.FC = () => {
               >
                 <X size={24} />
               </button>
-              <p className="text-blue-400 font-mono text-sm mb-2 tracking-widest uppercase">Letter Records</p>
+              <p className="text-blue-400 font-mono text-sm mb-2 tracking-widest uppercase">Archive Detail</p>
               <h3 className="text-3xl font-black">{selectedLetter.letterNumber}</h3>
               <div className="mt-6 flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
@@ -513,7 +539,7 @@ const LetterArchive: React.FC = () => {
                     <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
                       <AlertCircle className="mx-auto text-amber-500 mb-2" size={24} />
                       <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Missing Signed Copy</p>
-                      <p className="text-[10px] text-amber-600 mt-1">Please upload the scanned version to close this archive.</p>
+                      <p className="text-[10px] text-amber-600 mt-1">Upload the scanned version below.</p>
                     </div>
                   )}
 
@@ -535,7 +561,7 @@ const LetterArchive: React.FC = () => {
                     </label>
                     {isUploading && (
                       <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
-                        <Loader2 size={14} className="animate-spin" /> Syncing with Google Drive...
+                        <Loader2 size={14} className="animate-spin" /> Syncing with Cloud...
                       </div>
                     )}
                   </div>
