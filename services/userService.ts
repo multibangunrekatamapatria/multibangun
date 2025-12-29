@@ -3,20 +3,38 @@ import { User } from '../types';
 
 const USERS_KEY = 'mrp_portal_users';
 
-const DEFAULT_ADMIN: User = {
-  id: '1',
-  username: 'admin',
-  password: 'admin123',
-  role: 'admin',
-  fullName: 'Main Administrator',
-  department: 'Management'
-};
+const DEFAULT_USERS: User[] = [
+  {
+    id: '1',
+    username: 'admin',
+    password: '12345',
+    role: 'admin',
+    fullName: 'Main Administrator',
+    department: 'Management'
+  },
+  {
+    id: '2',
+    username: 'rifa',
+    password: '12345',
+    role: 'user',
+    fullName: 'Rifa',
+    department: 'Secretary'
+  },
+  {
+    id: '3',
+    username: 'sandra',
+    password: '240298',
+    role: 'user',
+    fullName: 'Sandra',
+    department: 'Purchasing'
+  }
+];
 
 export const getUsers = (): User[] => {
   const data = localStorage.getItem(USERS_KEY);
   if (!data) {
-    localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_ADMIN]));
-    return [DEFAULT_ADMIN];
+    localStorage.setItem(USERS_KEY, JSON.stringify(DEFAULT_USERS));
+    return DEFAULT_USERS;
   }
   return JSON.parse(data);
 };
