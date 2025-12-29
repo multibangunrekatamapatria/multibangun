@@ -21,7 +21,8 @@ import {
   Loader2,
   Edit3,
   Save,
-  Trash2
+  Trash2,
+  CloudUpload
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
 import { LETTER_TYPES } from '../constants';
@@ -38,6 +39,7 @@ const LetterArchive: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showSyncSuccess, setShowSyncSuccess] = useState(false);
 
   // Form State (for Create & Edit)
   const [formData, setFormData] = useState<Partial<Letter>>({
@@ -65,17 +67,21 @@ const LetterArchive: React.FC = () => {
       if (cloudLetters && cloudLetters.length > 0) {
         setLocalLetters(cloudLetters);
         setLetters(cloudLetters);
+        setShowSyncSuccess(true);
+        setTimeout(() => setShowSyncSuccess(false), 2000);
       } else {
         setLetters(getLetters());
       }
     } catch (e) {
       setLetters(getLetters());
+    } finally {
+      setIsSyncing(false);
     }
-    setIsSyncing(false);
   };
 
   useEffect(() => {
-    loadCloudData();
+    // Refresh list from local DB which might have been hydrated by App.tsx
+    setLetters(getLetters());
   }, []);
 
   const filteredLetters = useMemo(() => {
@@ -91,10 +97,15 @@ const LetterArchive: React.FC = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newLetter = saveLetter(formData);
-    setLetters([newLetter, ...letters]);
-    setIsModalOpen(false);
-    resetForm();
+    setIsSyncing(true);
+    try {
+      const newLetter = saveLetter(formData);
+      setLetters([newLetter, ...letters]);
+      setIsModalOpen(false);
+      resetForm();
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const resetForm = () => {
@@ -127,15 +138,20 @@ const LetterArchive: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedLetter) {
-      const updated = updateLetter(selectedLetter.id, formData);
-      setLetters(letters.map(l => l.id === selectedLetter.id ? updated : l));
-      setSelectedLetter(updated);
-      setIsEditing(false);
+      setIsSyncing(true);
+      try {
+        const updated = updateLetter(selectedLetter.id, formData);
+        setLetters(letters.map(l => l.id === selectedLetter.id ? updated : l));
+        setSelectedLetter(updated);
+        setIsEditing(false);
+      } finally {
+        setIsSyncing(false);
+      }
     }
   };
 
   const handleDeleteLetter = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this record? This action will sync to cloud.')) {
+    if (window.confirm('Delete this record? This will also remove it from the Google Sheet.')) {
       deleteLetter(id);
       setLetters(letters.filter(l => l.id !== id));
       setSelectedLetter(null);
@@ -209,14 +225,21 @@ const LetterArchive: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Letter Archive</h1>
-          <p className="text-sm text-gray-500">Auto-numbering & Google Workspace Sync.</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-gray-500">Auto-numbering & Google Master Sync.</p>
+            {showSyncSuccess && (
+              <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-bounce">
+                <Check size={12} /> Database Synced
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={loadCloudData}
             disabled={isSyncing}
-            className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-gray-200"
-            title="Force Sync with Cloud"
+            className={`p-2.5 rounded-xl transition-all border ${isSyncing ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50 border-gray-200'}`}
+            title="Refresh from Google Sheet"
           >
             <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
           </button>
@@ -235,7 +258,7 @@ const LetterArchive: React.FC = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
             type="text"
-            placeholder="Search by number, company, or subject..."
+            placeholder="Search by number, recipient, or subject..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-11 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -256,11 +279,11 @@ const LetterArchive: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden relative">
         {isSyncing && letters.length === 0 ? (
           <div className="p-20 text-center">
             <Loader2 size={40} className="animate-spin mx-auto text-blue-600 mb-4" />
-            <p className="text-gray-500 font-medium">Fetching database from Google Sheets...</p>
+            <p className="text-gray-500 font-medium">Connecting to Master Database...</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -318,11 +341,11 @@ const LetterArchive: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredLetters.length === 0 && (
+                {filteredLetters.length === 0 && !isSyncing && (
                   <tr>
                     <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
-                      <FileUp size={48} className="mx-auto mb-4 opacity-10" />
-                      <p className="text-lg">No records found matching your criteria.</p>
+                      <CloudUpload size={48} className="mx-auto mb-4 opacity-10" />
+                      <p className="text-lg">No records found. Click "Generate" to create one.</p>
                     </td>
                   </tr>
                 )}
@@ -333,12 +356,12 @@ const LetterArchive: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">New Letter Request</h3>
-                <p className="text-sm text-gray-500">Auto-number will follow the latest cloud sequence.</p>
+                <p className="text-sm text-gray-500">Auto-number will follow the latest sequence.</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                 <X size={24} />
@@ -464,32 +487,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               )}
 
-              {formData.typeCode === LetterTypeCode.SURDUK && (
-                <div className="bg-emerald-50 p-4 rounded-2xl space-y-4 border border-emerald-100">
-                  <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-2">
-                    <CheckCircle2 size={16} /> Tender Support Details
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="text-xs font-bold text-emerald-600 uppercase">Project / Tender Name</label>
-                      <input type="text" value={formData.projectName} onChange={(e) => setFormData({...formData, projectName: e.target.value})} className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-emerald-600 uppercase">Company Requesting</label>
-                      <input type="text" value={formData.companyRequested} onChange={(e) => setFormData({...formData, companyRequested: e.target.value})} className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-emerald-600 uppercase">PIC</label>
-                      <input type="text" value={formData.picName} onChange={(e) => setFormData({...formData, picName: e.target.value})} className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-emerald-600 uppercase">Expiration Date</label>
-                      <input type="date" value={formData.expirationDate} onChange={(e) => setFormData({...formData, expirationDate: e.target.value})} className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-3" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">Letter Subject</label>
                 <textarea 
@@ -505,9 +502,10 @@ const LetterArchive: React.FC = () => {
               <div className="pt-4">
                 <button 
                   type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-100 transition-all transform hover:-translate-y-0.5"
+                  disabled={isSyncing}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-100 transition-all transform hover:-translate-y-0.5 disabled:opacity-50"
                 >
-                  Generate & Sync Letter
+                  {isSyncing ? 'Syncing to Google...' : 'Generate & Sync Letter'}
                 </button>
               </div>
             </form>
@@ -516,7 +514,7 @@ const LetterArchive: React.FC = () => {
       )}
 
       {selectedLetter && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
           <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
             <div className="bg-gray-900 p-8 text-white relative">
               <div className="absolute top-6 right-6 flex items-center gap-2">
@@ -560,37 +558,38 @@ const LetterArchive: React.FC = () => {
             </div>
 
             {isEditing ? (
-              <form onSubmit={handleUpdate} className="p-8 space-y-6">
+              <form onSubmit={handleUpdate} className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Date Created</label>
-                    <input type="date" required value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Date Created</label>
+                    <input type="date" required value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Letter Type</label>
-                    <select required value={formData.typeCode} onChange={(e) => setFormData({...formData, typeCode: e.target.value as LetterTypeCode})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Letter Type</label>
+                    <select required value={formData.typeCode} onChange={(e) => setFormData({...formData, typeCode: e.target.value as LetterTypeCode})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
                       {LETTER_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Institution/Recipient</label>
-                    <input type="text" required value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recipient</label>
+                    <input type="text" required value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase">Requestor</label>
-                    <input type="text" required value={formData.requestor} onChange={(e) => setFormData({...formData, requestor: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3" />
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Requestor</label>
+                    <input type="text" required value={formData.requestor} onChange={(e) => setFormData({...formData, requestor: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Letter Subject</label>
-                  <textarea required rows={2} value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 resize-none" />
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Subject</label>
+                  <textarea required rows={2} value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4">
                   <button type="button" onClick={() => setIsEditing(false)} className="px-6 py-2.5 rounded-xl font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
-                  <button type="submit" className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all">
-                    <Save size={18} /> Save Changes
+                  <button type="submit" disabled={isSyncing} className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50">
+                    {isSyncing ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    {isSyncing ? 'Syncing...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
@@ -609,18 +608,6 @@ const LetterArchive: React.FC = () => {
                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</h4>
                     <p className="text-gray-700 leading-relaxed">{selectedLetter.subject}</p>
                   </div>
-                  {selectedLetter.projectName && (
-                    <div>
-                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Project</h4>
-                      <p className="text-gray-700 font-medium">{selectedLetter.projectName}</p>
-                    </div>
-                  )}
-                  {selectedLetter.materialInquired && (
-                    <div>
-                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Material(s)</h4>
-                      <p className="text-gray-700 font-medium">{selectedLetter.materialInquired}</p>
-                    </div>
-                  )}
                 </div>
 
                 <div className="space-y-6">
@@ -638,7 +625,7 @@ const LetterArchive: React.FC = () => {
                               <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
                               <p className="text-[10px] text-gray-400">{new Date(f.uploadedAt).toLocaleString()}</p>
                             </div>
-                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">In Drive</span>
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase">Stored</span>
                           </div>
                         ))}
                       </div>
@@ -646,7 +633,7 @@ const LetterArchive: React.FC = () => {
                       <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
                         <AlertCircle className="mx-auto text-amber-500 mb-2" size={24} />
                         <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Missing Signed Copy</p>
-                        <p className="text-[10px] text-amber-600 mt-1">Upload the scanned version below.</p>
+                        <p className="text-[10px] text-amber-600 mt-1">Scanned version not yet uploaded.</p>
                       </div>
                     )}
 
@@ -668,7 +655,7 @@ const LetterArchive: React.FC = () => {
                       </label>
                       {isUploading && (
                         <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
-                          <Loader2 size={14} className="animate-spin" /> Syncing with Cloud...
+                          <Loader2 size={14} className="animate-spin" /> Uploading to Drive...
                         </div>
                       )}
                     </div>
