@@ -1,7 +1,0 @@
-{
-  "name": "MRP Office Portal",
-  "description": "A comprehensive office management portal for PT MULTIBANGUN REKATAMA PATRIA featuring automatic letter and PO generation, archiving, and document tracking.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
