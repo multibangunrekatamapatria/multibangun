@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { getUsers, saveUser, deleteUser } from '../services/userService';
 import { User } from '../types';
-import { UserPlus, Trash2, Shield, Users, Database, Globe, Save, ExternalLink } from 'lucide-react';
+import { UserPlus, Trash2, Shield, Users, Database, Globe, Save, ExternalLink, CheckCircle } from 'lucide-react';
+import { SYSTEM_CONFIG } from '../constants';
 
 const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  // Fix: Explicitly type newUser state to allow both 'admin' and 'user' roles
   const [newUser, setNewUser] = useState<{
     username: string;
     password: string;
@@ -16,11 +16,10 @@ const AdminPanel: React.FC = () => {
     department: string;
   }>({ username: '', password: '', fullName: '', role: 'user', department: '' });
   
-  // Integration Settings
   const [config, setConfig] = useState({
-    scriptUrl: localStorage.getItem('mrp_google_script_url') || '',
-    sheetId: localStorage.getItem('mrp_google_sheet_id') || '',
-    folderId: localStorage.getItem('mrp_google_folder_id') || ''
+    scriptUrl: localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL,
+    sheetId: localStorage.getItem('mrp_google_sheet_id') || SYSTEM_CONFIG.GOOGLE.SHEET_ID,
+    folderId: localStorage.getItem('mrp_google_folder_id') || SYSTEM_CONFIG.GOOGLE.FOLDER_ID
   });
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -33,7 +32,6 @@ const AdminPanel: React.FC = () => {
     saveUser(newUser);
     setUsers(getUsers());
     setShowAddModal(false);
-    // Fix: Reset newUser state using the same broadened type structure
     setNewUser({ username: '', password: '', fullName: '', role: 'user', department: '' });
   };
 
@@ -48,8 +46,13 @@ const AdminPanel: React.FC = () => {
     localStorage.setItem('mrp_google_script_url', config.scriptUrl);
     localStorage.setItem('mrp_google_sheet_id', config.sheetId);
     localStorage.setItem('mrp_google_folder_id', config.folderId);
-    setSaveStatus('Settings saved locally!');
+    setSaveStatus('Settings updated globally!');
     setTimeout(() => setSaveStatus(null), 3000);
+  };
+
+  const isDefault = (key: keyof typeof SYSTEM_CONFIG.GOOGLE) => {
+    const val = localStorage.getItem(`mrp_google_${key.toLowerCase() === 'scripturl' ? 'script_url' : key.toLowerCase().includes('sheet') ? 'sheet_id' : 'folder_id'}`);
+    return !val || val === SYSTEM_CONFIG.GOOGLE[key];
   };
 
   return (
@@ -57,7 +60,7 @@ const AdminPanel: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Admin Control Center</h1>
-          <p className="text-sm text-gray-500">Manage portal users and external database integrations.</p>
+          <p className="text-sm text-gray-500">Manage portal users and company-wide integrations.</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
@@ -69,12 +72,11 @@ const AdminPanel: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* User Management */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center gap-2 font-bold text-gray-900">
               <Users size={20} className="text-blue-600" />
-              Portal Access Management
+              User Access Management
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -119,7 +121,6 @@ const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Integration Sidebar */}
         <div className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-6">
@@ -132,33 +133,39 @@ const AdminPanel: React.FC = () => {
             
             <div className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Google Apps Script URL</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Google Apps Script URL</label>
+                  {isDefault('SCRIPT_URL') && <span className="text-[8px] font-bold text-blue-500 uppercase">System Active</span>}
+                </div>
                 <input 
                   type="text" 
-                  placeholder="https://script.google.com/macros/s/..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                   value={config.scriptUrl}
                   onChange={e => setConfig({...config, scriptUrl: e.target.value})}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Master Sheet ID</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Master Sheet ID</label>
+                  {isDefault('SHEET_ID') && <span className="text-[8px] font-bold text-blue-500 uppercase">System Active</span>}
+                </div>
                 <input 
                   type="text" 
-                  placeholder="Enter Google Sheet ID"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                   value={config.sheetId}
                   onChange={e => setConfig({...config, sheetId: e.target.value})}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Archive Folder ID</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Archive Folder ID</label>
+                  {isDefault('FOLDER_ID') && <span className="text-[8px] font-bold text-blue-500 uppercase">System Active</span>}
+                </div>
                 <input 
                   type="text" 
-                  placeholder="Enter Drive Folder ID"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
                   value={config.folderId}
                   onChange={e => setConfig({...config, folderId: e.target.value})}
                 />
@@ -169,36 +176,29 @@ const AdminPanel: React.FC = () => {
                 className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-all"
               >
                 <Save size={16} />
-                Save Connection Settings
+                Update Connection
               </button>
 
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
-                  <strong>Tip:</strong> Use Google Apps Script as a bridge. The portal will send data to your Script URL, which then writes to your Sheets and uploads files to Drive.
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-3">
+                <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-emerald-800 leading-relaxed font-medium">
+                  <strong>Status:</strong> All users are currently using the default company IDs provided by the Admin. Data sync is active.
                 </p>
-                <a 
-                  href="https://developers.google.com/apps-script/guides/web" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-[10px] text-blue-600 underline mt-2 flex items-center gap-1 font-bold"
-                >
-                  Learn how to deploy script <ExternalLink size={10} />
-                </a>
               </div>
             </div>
           </div>
           
-          <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-100">
+          <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-100">
             <Database size={32} className="mb-4 opacity-50" />
-            <h3 className="font-bold text-lg mb-1">System Health</h3>
-            <p className="text-xs text-indigo-100 mb-4">Letter sequence is synchronized with your local browser cache.</p>
+            <h3 className="font-bold text-lg mb-1">Central Sync</h3>
+            <p className="text-xs text-blue-100 mb-4">Letter numbering and file archiving are synchronized with your company's Google Workspace.</p>
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-indigo-200">
-                <span>Database Status</span>
-                <span className="text-emerald-400">Active</span>
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-blue-200">
+                <span>Connectivity</span>
+                <span className="text-emerald-400">Stable</span>
               </div>
               <div className="w-full bg-white/10 rounded-full h-1">
-                <div className="bg-emerald-400 h-1 rounded-full w-[95%]"></div>
+                <div className="bg-emerald-400 h-1 rounded-full w-full"></div>
               </div>
             </div>
           </div>
@@ -212,32 +212,32 @@ const AdminPanel: React.FC = () => {
             <form onSubmit={handleAddUser} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-500 uppercase">Full Name</label>
-                <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="e.g. Sandra Dewi" value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})} />
+                <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Sandra Dewi" value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})} />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-500 uppercase">Department</label>
-                <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="e.g. Purchasing" value={newUser.department} onChange={e => setNewUser({...newUser, department: e.target.value})} />
+                <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Purchasing" value={newUser.department} onChange={e => setNewUser({...newUser, department: e.target.value})} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-500 uppercase">Username</label>
-                  <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+                  <input required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-500 uppercase">Password</label>
-                  <input required type="password" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                  <input required type="password" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
                 </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-500 uppercase">Role</label>
-                <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as 'admin' | 'user'})}>
+                <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as 'admin' | 'user'})}>
                   <option value="user">User (Standard Access)</option>
                   <option value="admin">Administrator (Full Control)</option>
                 </select>
               </div>
               <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Create Account</button>
+                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700">Create Account</button>
               </div>
             </form>
           </div>
