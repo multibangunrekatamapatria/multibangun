@@ -12,7 +12,6 @@ export const getLetters = (): Letter[] => {
 
 /**
  * Merges cloud data into local storage. 
- * Important: This ensures Incognito sessions get the latest cloud state.
  */
 export const setLetters = (letters: Letter[]) => {
   localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
@@ -21,40 +20,42 @@ export const setLetters = (letters: Letter[]) => {
 export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const letters = getLetters();
   
-  const dateObj = new Date(letterData.date || new Date().toISOString());
+  // Use the provided date or fall back to today
+  const targetDateStr = letterData.date || new Date().toISOString().split('T')[0];
+  const dateObj = new Date(targetDateStr);
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  // Find letters for the same year to determine next sequence number
-  const yearLetters = letters.filter(l => {
+  // 1. Filter all letters that belong to the same year as the new letter
+  const sameYearLetters = letters.filter(l => {
     const lDate = new Date(l.date);
     return lDate.getFullYear() === year;
   });
   
+  // 2. Determine the next sequence number for THIS year
+  // If no letters exist for this year, start at 1. Otherwise, increment the highest.
   let sequence: number;
-  if (yearLetters.length > 0) {
-    // Find the actual highest number used in the cloud/local DB for this year
-    sequence = Math.max(...yearLetters.map(l => l.sequence || 0)) + 1;
+  if (sameYearLetters.length > 0) {
+    sequence = Math.max(...sameYearLetters.map(l => l.sequence || 0)) + 1;
   } else {
-    // If it's the first letter of the year
-    // Rule: 2025 starts at 341, others start at 001
-    sequence = (year === 2025) ? 341 : 1;
+    sequence = 1;
   }
 
   const sequenceStr = sequence.toString().padStart(3, '0');
   const romanMonth = ROMAN_MONTHS[month];
   
+  // Generate the formatted number
   const letterNumber = `${sequenceStr}/MRP/${letterData.typeCode}/${romanMonth}/${year}`;
   
   const newLetter: Letter = {
     id: crypto.randomUUID(),
     letterNumber,
     sequence,
-    date: letterData.date!,
-    companyName: letterData.companyName!,
-    requestor: letterData.requestor!,
-    typeCode: letterData.typeCode!,
-    subject: letterData.subject!,
+    date: targetDateStr,
+    companyName: letterData.companyName || '',
+    requestor: letterData.requestor || 'Admin',
+    typeCode: letterData.typeCode || LetterTypeCode.MISC,
+    subject: letterData.subject || '',
     createdAt: new Date().toISOString(),
     files: [],
     ...letterData
@@ -81,11 +82,22 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   const updatedLetter = { ...originalLetter, ...updates };
   
   // Recalculate letter number only if type or date changed
+  // This ensures if you change a letter from Dec 2025 to Jan 2026, it gets a new number
   if (updates.date || updates.typeCode) {
     const dateObj = new Date(updatedLetter.date);
     const year = dateObj.getFullYear();
     const month = dateObj.getMonth() + 1;
     const romanMonth = ROMAN_MONTHS[month];
+    
+    // Check if the year has changed
+    const oldYear = new Date(originalLetter.date).getFullYear();
+    if (year !== oldYear) {
+      // Re-calculate sequence for the new year
+      const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year && l.id !== id);
+      const newSequence = yearLetters.length > 0 ? Math.max(...yearLetters.map(l => l.sequence || 0)) + 1 : 1;
+      updatedLetter.sequence = newSequence;
+    }
+
     const sequenceStr = updatedLetter.sequence.toString().padStart(3, '0');
     updatedLetter.letterNumber = `${sequenceStr}/MRP/${updatedLetter.typeCode}/${romanMonth}/${year}`;
   }
