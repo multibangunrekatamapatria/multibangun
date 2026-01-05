@@ -26,14 +26,30 @@ export const LETTER_TYPES = [
   { code: LetterTypeCode.MISC, label: 'Others (MISC)' },
 ];
 
-// Global System Configuration - This applies to all users
+// Global System Configuration
 export const SYSTEM_CONFIG = {
   PORTAL_NAME: 'Multiportal',
   COMPANY_NAME: 'Multibangun',
   FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
   GOOGLE: {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyuT4vZaBieVQpemCMpJnawIfMwP0kCzNXofFQBPslsVvu6dXYaXLYiHwVEfAV3eWe-/exec',
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyxhTOOx7Qwovwb626u4oX_18SBlJR8z8fv1GUX2XrqHx5E-WdRmsBsxURUqAKSIBQfbw/exec',
     SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
     FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
+  }
+};
+
+/**
+ * Formats an ISO or YYYY-MM-DD date string into dd/mm/yyyy
+ */
+export const formatDateDisplay = (dateStr: string): string => {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return dateStr;
   }
 };
