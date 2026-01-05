@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLetters } from '../services/dbService';
+import { formatDateDisplay } from '../constants';
 import { 
   FileText, 
   AlertTriangle, 
@@ -44,7 +45,6 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-500 mt-1">Here is what's happening at PT MRP today.</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           icon={<FileText className="text-blue-600" />} 
@@ -74,7 +74,6 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Activity */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-bold text-gray-900 flex items-center gap-2">
@@ -102,7 +101,7 @@ const Dashboard: React.FC = () => {
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${l.files.length > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                     {l.files.length > 0 ? 'Signed' : 'Draft'}
                   </span>
-                  <p className="text-[10px] text-gray-400 font-medium">{new Date(l.date).toLocaleDateString()}</p>
+                  <p className="text-[10px] text-gray-400 font-medium">{formatDateDisplay(l.date)}</p>
                 </div>
               </div>
             )) : (
@@ -114,7 +113,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
           <h2 className="font-bold text-gray-900 mb-6">Quick Actions</h2>
           <button 
