@@ -22,10 +22,12 @@ import {
   Edit3,
   Save,
   Trash2,
-  CloudUpload
+  CloudUpload,
+  FileSearch,
+  Download
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
-import { LETTER_TYPES } from '../constants';
+import { LETTER_TYPES, formatDateDisplay } from '../constants';
 import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters, deleteLetter } from '../services/dbService';
 import { syncToGoogle, fileToBase64, fetchLettersFromGoogle } from '../services/googleService';
 
@@ -80,7 +82,6 @@ const LetterArchive: React.FC = () => {
   };
 
   useEffect(() => {
-    // Refresh list from local DB which might have been hydrated by App.tsx
     setLetters(getLetters());
   }, []);
 
@@ -191,7 +192,7 @@ const LetterArchive: React.FC = () => {
 
       const newFile = {
         name: fileName,
-        url: '#SyncedToDrive',
+        url: '#SyncedToDrivePendingRefresh',
         uploadedAt: new Date().toISOString()
       };
 
@@ -203,6 +204,8 @@ const LetterArchive: React.FC = () => {
       if (selectedLetter?.id === letterId) {
         setSelectedLetter(updated);
       }
+      
+      alert('Upload dispatched! Refresh in a few moments to see the Drive link.');
     } catch (err) {
       console.error(err);
       alert('Upload failed. Check your connectivity.');
@@ -313,7 +316,7 @@ const LetterArchive: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-500">{new Date(l.date).toLocaleDateString()}</span>
+                      <span className="text-sm text-gray-500">{formatDateDisplay(l.date)}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-semibold text-gray-900">{l.companyName}</span>
@@ -453,40 +456,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               )}
 
-              {formData.typeCode === LetterTypeCode.TUGAS && (
-                <div className="bg-indigo-50 p-4 rounded-2xl space-y-4 border border-indigo-100">
-                  <h4 className="text-sm font-bold text-indigo-700 flex items-center gap-2">
-                    <Briefcase size={16} /> Assignment Details
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">Start Date</label>
-                      <input type="date" value={formData.startDate} onChange={(e) => setFormData({...formData, startDate: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">Transportation</label>
-                      <input type="text" placeholder="e.g. Office Van, Plane" value={formData.transportation} onChange={(e) => setFormData({...formData, transportation: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">Project Name</label>
-                      <input type="text" value={formData.projectName} onChange={(e) => setFormData({...formData, projectName: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">Installer Name(s)</label>
-                      <input type="text" placeholder="Separate by comma" value={formData.installerNames} onChange={(e) => setFormData({...formData, installerNames: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">CP Name</label>
-                      <input type="text" value={formData.contactPersonName} onChange={(e) => setFormData({...formData, contactPersonName: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-indigo-600 uppercase">CP Phone</label>
-                      <input type="text" value={formData.contactPersonPhone} onChange={(e) => setFormData({...formData, contactPersonPhone: e.target.value})} className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">Letter Subject</label>
                 <textarea 
@@ -548,7 +517,7 @@ const LetterArchive: React.FC = () => {
               <div className="mt-6 flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
                   <Calendar size={16} className="text-blue-400" />
-                  {new Date(selectedLetter.date).toLocaleDateString()}
+                  {formatDateDisplay(selectedLetter.date)}
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
                   <Tag size={16} className="text-blue-400" />
@@ -619,15 +588,29 @@ const LetterArchive: React.FC = () => {
                     
                     {selectedLetter.files.length > 0 ? (
                       <div className="space-y-3">
-                        {selectedLetter.files.map((f, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
-                            <div className="flex-1 min-w-0 pr-4">
-                              <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
-                              <p className="text-[10px] text-gray-400">{new Date(f.uploadedAt).toLocaleString()}</p>
+                        {selectedLetter.files.map((f, i) => {
+                          const isLinkable = f.url && f.url.startsWith('http');
+                          return (
+                            <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                              <div className="flex-1 min-w-0 pr-4">
+                                <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
+                                <p className="text-[10px] text-gray-400">{formatDateDisplay(f.uploadedAt)}</p>
+                              </div>
+                              {isLinkable ? (
+                                <a 
+                                  href={f.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-blue-700 transition-colors shadow-sm"
+                                >
+                                  <Download size={10} /> View
+                                </a>
+                              ) : (
+                                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase">Pending Link</span>
+                              )}
                             </div>
-                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase">Stored</span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
