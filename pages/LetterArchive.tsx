@@ -24,11 +24,12 @@ import {
   Trash2,
   CloudUpload,
   FileSearch,
-  Download
+  Download,
+  Eye
 } from 'lucide-react';
 import { Letter, LetterTypeCode } from '../types';
 import { LETTER_TYPES, formatDateDisplay } from '../constants';
-import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters, deleteLetter } from '../services/dbService';
+import { getLetters, saveLetter, updateLetter, setLetters as setLocalLetters, deleteLetter, removeFileFromLetter } from '../services/dbService';
 import { syncToGoogle, fileToBase64, fetchLettersFromGoogle } from '../services/googleService';
 
 const LetterArchive: React.FC = () => {
@@ -43,7 +44,7 @@ const LetterArchive: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSyncSuccess, setShowSyncSuccess] = useState(false);
 
-  // Form State (for Create & Edit)
+  // Form State
   const [formData, setFormData] = useState<Partial<Letter>>({
     date: new Date().toISOString().split('T')[0],
     companyName: '',
@@ -52,14 +53,6 @@ const LetterArchive: React.FC = () => {
     subject: '',
     materialInquired: '',
     projectName: '',
-    startDate: '',
-    transportation: '',
-    installerNames: '',
-    contactPersonName: '',
-    contactPersonPhone: '',
-    companyRequested: '',
-    picName: '',
-    expirationDate: ''
   });
 
   const loadCloudData = async () => {
@@ -118,14 +111,6 @@ const LetterArchive: React.FC = () => {
       subject: '',
       materialInquired: '',
       projectName: '',
-      startDate: '',
-      transportation: '',
-      installerNames: '',
-      contactPersonName: '',
-      contactPersonPhone: '',
-      companyRequested: '',
-      picName: '',
-      expirationDate: ''
     });
   };
 
@@ -148,6 +133,15 @@ const LetterArchive: React.FC = () => {
       } finally {
         setIsSyncing(false);
       }
+    }
+  };
+
+  const handleDeleteFile = (fileName: string) => {
+    if (!selectedLetter) return;
+    if (window.confirm(`Delete "${fileName}"? You will need to upload it again to replace it.`)) {
+      const updated = removeFileFromLetter(selectedLetter.id, fileName);
+      setLetters(letters.map(l => l.id === selectedLetter.id ? updated : l));
+      setSelectedLetter(updated);
     }
   };
 
@@ -344,14 +338,6 @@ const LetterArchive: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredLetters.length === 0 && !isSyncing && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
-                      <CloudUpload size={48} className="mx-auto mb-4 opacity-10" />
-                      <p className="text-lg">No records found. Click "Generate" to create one.</p>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -426,36 +412,6 @@ const LetterArchive: React.FC = () => {
                 </div>
               </div>
 
-              {formData.typeCode === LetterTypeCode.PWRN && (
-                <div className="bg-blue-50 p-4 rounded-2xl space-y-4 border border-blue-100">
-                  <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2">
-                    <Info size={16} /> Quotation Details
-                  </h4>
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-blue-600 uppercase">Material(s) Inquired</label>
-                      <input 
-                        type="text"
-                        placeholder="e.g. Roof Tiles, Paving Blocks"
-                        value={formData.materialInquired}
-                        onChange={(e) => setFormData({...formData, materialInquired: e.target.value})}
-                        className="w-full bg-white border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-blue-600 uppercase">Project Name</label>
-                      <input 
-                        type="text"
-                        placeholder="Project title"
-                        value={formData.projectName}
-                        onChange={(e) => setFormData({...formData, projectName: e.target.value})}
-                        className="w-full bg-white border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">Letter Subject</label>
                 <textarea 
@@ -484,161 +440,162 @@ const LetterArchive: React.FC = () => {
 
       {selectedLetter && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
-            <div className="bg-gray-900 p-8 text-white relative">
-              <div className="absolute top-6 right-6 flex items-center gap-2">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="bg-[#0f172a] p-10 text-white relative">
+              <div className="absolute top-8 right-8 flex items-center gap-3">
                 {!isEditing && (
                   <>
-                    <button 
-                      onClick={handleEditInit} 
-                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-blue-400"
-                      title="Edit Record"
-                    >
-                      <Edit3 size={20} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteLetter(selectedLetter.id)} 
-                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-red-400"
-                      title="Delete Record"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    <button onClick={handleEditInit} className="p-2.5 hover:bg-white/10 rounded-full transition-colors text-blue-400"><Edit3 size={20} /></button>
+                    <button onClick={() => handleDeleteLetter(selectedLetter.id)} className="p-2.5 hover:bg-white/10 rounded-full transition-colors text-red-400"><Trash2 size={20} /></button>
                   </>
                 )}
-                <button 
-                  onClick={() => { setSelectedLetter(null); setIsEditing(false); }} 
-                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                >
-                  <X size={24} />
-                </button>
+                <button onClick={() => { setSelectedLetter(null); setIsEditing(false); }} className="p-2.5 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
               </div>
-              <p className="text-blue-400 font-mono text-sm mb-2 tracking-widest uppercase">{isEditing ? 'Editing Record' : 'Archive Detail'}</p>
-              <h3 className="text-3xl font-black">{selectedLetter.letterNumber}</h3>
-              <div className="mt-6 flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
-                  <Calendar size={16} className="text-blue-400" />
+              <p className="text-blue-400 font-mono text-sm mb-3 tracking-widest uppercase font-bold">Archive Detail</p>
+              <h3 className="text-4xl font-black tracking-tight">{selectedLetter.letterNumber}</h3>
+              <div className="mt-8 flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-2.5 bg-white/5 px-5 py-2.5 rounded-2xl text-sm border border-white/10 font-bold">
+                  <Calendar size={18} className="text-blue-400" />
                   {formatDateDisplay(selectedLetter.date)}
                 </div>
-                <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-sm border border-white/10">
-                  <Tag size={16} className="text-blue-400" />
+                <div className="flex items-center gap-2.5 bg-white/5 px-5 py-2.5 rounded-2xl text-sm border border-white/10 font-bold uppercase">
+                  <Tag size={18} className="text-blue-400" />
                   {selectedLetter.typeCode}
                 </div>
               </div>
             </div>
 
             {isEditing ? (
-              <form onSubmit={handleUpdate} className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleUpdate} className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Date Created</label>
-                    <input type="date" required value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input type="date" required value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none font-medium" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Letter Type</label>
-                    <select required value={formData.typeCode} onChange={(e) => setFormData({...formData, typeCode: e.target.value as LetterTypeCode})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <select required value={formData.typeCode} onChange={(e) => setFormData({...formData, typeCode: e.target.value as LetterTypeCode})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none font-medium">
                       {LETTER_TYPES.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recipient</label>
-                    <input type="text" required value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input type="text" required value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none font-medium" />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Requestor</label>
-                    <input type="text" required value={formData.requestor} onChange={(e) => setFormData({...formData, requestor: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input type="text" required value={formData.requestor} onChange={(e) => setFormData({...formData, requestor: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none font-medium" />
                   </div>
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Subject</label>
-                  <textarea required rows={2} value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <textarea required rows={2} value={formData.subject} onChange={(e) => setFormData({...formData, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-5 py-3.5 resize-none focus:ring-2 focus:ring-blue-500 outline-none font-medium" />
                 </div>
-
-                <div className="flex gap-3 justify-end pt-4">
-                  <button type="button" onClick={() => setIsEditing(false)} className="px-6 py-2.5 rounded-xl font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
-                  <button type="submit" disabled={isSyncing} className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50">
-                    {isSyncing ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                <div className="flex gap-4 justify-end pt-6">
+                  <button type="button" onClick={() => setIsEditing(false)} className="px-8 py-3 rounded-xl font-bold text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                  <button type="submit" disabled={isSyncing} className="bg-blue-600 text-white px-10 py-3 rounded-xl font-bold flex items-center gap-3 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50">
+                    {isSyncing ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                     {isSyncing ? 'Syncing...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Company/Institution</h4>
-                    <p className="text-lg font-bold text-gray-900">{selectedLetter.companyName}</p>
+              <div className="p-10 grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div className="space-y-8">
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">Company / Institution</h4>
+                    <p className="text-xl font-black text-gray-900 leading-tight">{selectedLetter.companyName}</p>
                   </div>
-                  <div>
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Requestor</h4>
-                    <p className="text-gray-900 font-medium">{selectedLetter.requestor}</p>
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">Requestor</h4>
+                    <p className="text-lg font-bold text-gray-900">{selectedLetter.requestor}</p>
                   </div>
-                  <div>
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</h4>
-                    <p className="text-gray-700 leading-relaxed">{selectedLetter.subject}</p>
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3">Subject</h4>
+                    <p className="text-gray-700 leading-relaxed font-medium">{selectedLetter.subject}</p>
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-                    <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <FileUp size={18} className="text-blue-600" />
-                      Archived Soft Copies
-                    </h4>
+                <div className="space-y-8">
+                  <div className="bg-gray-50 rounded-3xl p-8 border border-gray-100 shadow-inner">
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-sm font-black text-gray-900 flex items-center gap-3 uppercase tracking-wider">
+                        <FileSearch size={24} className="text-blue-600" />
+                        Archived Documents
+                      </h4>
+                      <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full uppercase">
+                        {selectedLetter.files.length} Files
+                      </span>
+                    </div>
                     
                     {selectedLetter.files.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {selectedLetter.files.map((f, i) => {
                           const isLinkable = f.url && f.url.startsWith('http');
                           return (
-                            <div key={i} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
-                              <div className="flex-1 min-w-0 pr-4">
-                                <p className="text-xs font-bold text-gray-900 truncate" title={f.name}>{f.name}</p>
-                                <p className="text-[10px] text-gray-400">{formatDateDisplay(f.uploadedAt)}</p>
-                              </div>
-                              {isLinkable ? (
-                                <a 
-                                  href={f.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-blue-700 transition-colors shadow-sm"
+                            <div key={i} className="group relative bg-white border border-gray-200 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0 pr-8">
+                                  <p className="text-xs font-black text-gray-900 truncate uppercase tracking-tight" title={f.name}>{f.name}</p>
+                                  <p className="text-[10px] text-gray-400 font-bold mt-1">{formatDateDisplay(f.uploadedAt)}</p>
+                                </div>
+                                <button 
+                                  onClick={() => handleDeleteFile(f.name)}
+                                  className="text-gray-300 hover:text-red-500 p-1.5 transition-colors shrink-0"
+                                  title="Delete File"
                                 >
-                                  <Download size={10} /> View
-                                </a>
-                              ) : (
-                                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase">Pending Link</span>
-                              )}
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                {isLinkable ? (
+                                  <a 
+                                    href={f.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-50"
+                                  >
+                                    <Eye size={14} /> Open Document
+                                  </a>
+                                ) : (
+                                  <div className="flex-1 text-center py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase border border-emerald-100">
+                                    Syncing to Cloud...
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
-                        <AlertCircle className="mx-auto text-amber-500 mb-2" size={24} />
-                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Missing Signed Copy</p>
-                        <p className="text-[10px] text-amber-600 mt-1">Scanned version not yet uploaded.</p>
+                      <div className="bg-amber-50 border border-amber-100 p-8 rounded-2xl text-center">
+                        <AlertCircle className="mx-auto text-amber-500 mb-4" size={32} />
+                        <p className="text-xs font-black text-amber-800 uppercase tracking-widest">No Soft Copy Found</p>
+                        <p className="text-[11px] text-amber-600 mt-2 font-medium">Please upload the signed version of this letter.</p>
                       </div>
                     )}
 
-                    <div className="mt-6 relative">
-                      <label className="block">
+                    <div className="mt-8">
+                      <label className="block group">
                         <span className="sr-only">Choose file</span>
-                        <input 
-                          type="file" 
-                          disabled={isUploading}
-                          onChange={(e) => handleFileUpload(selectedLetter.id, e)}
-                          className="block w-full text-sm text-gray-500
-                            file:mr-4 file:py-2.5 file:px-4
-                            file:rounded-xl file:border-0
-                            file:text-sm file:font-bold
-                            file:bg-blue-600 file:text-white
-                            hover:file:bg-blue-700
-                            disabled:opacity-50 transition-all cursor-pointer"
-                        />
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            disabled={isUploading}
+                            onChange={(e) => handleFileUpload(selectedLetter.id, e)}
+                            className="block w-full text-sm text-gray-500
+                              file:mr-4 file:py-3.5 file:px-6
+                              file:rounded-2xl file:border-0
+                              file:text-[10px] file:font-black file:uppercase
+                              file:bg-gray-900 file:text-white
+                              hover:file:bg-black
+                              disabled:opacity-50 transition-all cursor-pointer"
+                          />
+                        </div>
                       </label>
                       {isUploading && (
-                        <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-bold animate-pulse">
-                          <Loader2 size={14} className="animate-spin" /> Uploading to Drive...
+                        <div className="mt-4 flex items-center justify-center gap-3 text-xs text-blue-600 font-black uppercase animate-pulse">
+                          <Loader2 size={16} className="animate-spin" /> Uploading to Secure Storage...
                         </div>
                       )}
                     </div>
@@ -647,10 +604,10 @@ const LetterArchive: React.FC = () => {
               </div>
             )}
             
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+            <div className="p-8 bg-gray-50 border-t border-gray-100 flex justify-end">
               <button 
                 onClick={() => { setSelectedLetter(null); setIsEditing(false); }}
-                className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-200 transition-colors"
+                className="px-10 py-3.5 rounded-2xl font-black text-gray-500 hover:bg-gray-200 transition-all uppercase text-[11px] tracking-widest"
               >
                 Close View
               </button>
