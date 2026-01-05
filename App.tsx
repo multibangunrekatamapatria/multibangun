@@ -12,39 +12,35 @@ import Layout from './components/Layout';
 import { User } from './types';
 import { fetchLettersFromGoogle } from './services/googleService';
 import { setLetters } from './services/dbService';
-import { Loader2, CloudOff, Database } from 'lucide-react';
+import { Loader2, Database, AlertCircle, CloudOff, HelpCircle, ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [cloudStatus, setCloudStatus] = useState<'syncing' | 'online' | 'error'>('syncing');
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const initApp = async () => {
+    setIsLoading(true);
+    setSyncError(null);
+    
+    const savedUser = localStorage.getItem('mrp_user');
+    if (savedUser) setUser(JSON.parse(savedUser));
+
+    try {
+      const cloudData = await fetchLettersFromGoogle();
+      if (cloudData && Array.isArray(cloudData)) {
+        setLetters(cloudData);
+      }
+      setIsLoading(false);
+    } catch (err) {
+      console.warn("Cloud connection error:", err);
+      // Detailed diagnostics for "Failed to fetch"
+      setSyncError("Cloud Sync Failure: Connection to Google Master Sheet was blocked.");
+      setTimeout(() => setIsLoading(false), 1500);
+    }
+  };
 
   useEffect(() => {
-    const initApp = async () => {
-      // 1. Check local session
-      const savedUser = localStorage.getItem('mrp_user');
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
-
-      // 2. Hydrate from Cloud (Critical for sequence numbering in Incognito)
-      try {
-        const cloudData = await fetchLettersFromGoogle();
-        if (cloudData && cloudData.length > 0) {
-          setLetters(cloudData);
-          setCloudStatus('online');
-        } else {
-          // If fetched but empty, might be a new sheet
-          setCloudStatus('online');
-        }
-      } catch (err) {
-        console.error("Initial cloud sync failed", err);
-        setCloudStatus('error');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     initApp();
   }, []);
 
@@ -61,19 +57,16 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-sm bg-white p-10 rounded-3xl shadow-xl border border-gray-100 flex flex-col items-center gap-6">
+        <div className="w-full max-w-sm bg-white p-12 rounded-[3rem] shadow-2xl border border-gray-100 flex flex-col items-center gap-8 text-center">
           <div className="relative">
-            <Loader2 size={48} className="animate-spin text-blue-600" />
+            <Loader2 size={64} className="animate-spin text-blue-600" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <Database size={18} className="text-blue-200" />
+              <Database size={24} className="text-blue-200" />
             </div>
           </div>
-          <div className="text-center space-y-2">
-            <h2 className="font-black text-gray-900 text-xl tracking-tight uppercase">Multiportal Sync</h2>
-            <p className="text-sm text-gray-500 font-medium">Downloading latest sequence from Master Sheet...</p>
-          </div>
-          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-blue-600 h-full w-2/3 animate-[progress_2s_infinite]"></div>
+          <div className="space-y-4">
+            <h2 className="font-black text-gray-900 text-2xl tracking-tighter uppercase">Initializing Portal</h2>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.3em] leading-relaxed">Connecting to PT MRP Central Cloud Database...</p>
           </div>
         </div>
       </div>
@@ -82,12 +75,41 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
+      {syncError && (
+        <div className="fixed top-0 left-0 right-0 z-[9999] bg-red-600 text-white px-6 py-6 flex flex-col md:flex-row items-center justify-center gap-6 shadow-2xl animate-in slide-in-from-top duration-700">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/20 p-3 rounded-2xl">
+              <ShieldAlert size={28} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-1">Critical Connection Fault</p>
+              <p className="text-base font-black uppercase tracking-tight">Sync Failure: Google Apps Script returned 'Failed to fetch'.</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 mt-1">Check Deployment -> "Who has access" must be set to "Anyone"</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-white text-red-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg"
+            >
+              <CloudOff size={16} /> Retry Connection
+            </button>
+            <a 
+              href="https://script.google.com" 
+              target="_blank" 
+              rel="noreferrer"
+              className="bg-red-800 hover:bg-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-red-400/30"
+            >
+              <HelpCircle size={16} /> Verify Deployment
+            </a>
+          </div>
+        </div>
+      )}
       <Routes>
         <Route 
           path="/login" 
           element={!user ? <LoginPage onLogin={handleLogin} /> : <Navigate to="/" replace />} 
         />
-        
         <Route 
           path="/" 
           element={user ? <Layout user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
@@ -99,7 +121,6 @@ const App: React.FC = () => {
           <Route path="ppu" element={<PPUManagement />} />
           {user?.role === 'admin' && <Route path="admin" element={<AdminPanel />} />}
         </Route>
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
