@@ -20,20 +20,16 @@ export const setLetters = (letters: Letter[]) => {
 export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const letters = getLetters();
   
-  // Use the provided date or fall back to today
   const targetDateStr = letterData.date || new Date().toISOString().split('T')[0];
   const dateObj = new Date(targetDateStr);
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
   
-  // 1. Filter all letters that belong to the same year as the new letter
   const sameYearLetters = letters.filter(l => {
     const lDate = new Date(l.date);
     return lDate.getFullYear() === year;
   });
   
-  // 2. Determine the next sequence number for THIS year
-  // If no letters exist for this year, start at 1. Otherwise, increment the highest.
   let sequence: number;
   if (sameYearLetters.length > 0) {
     sequence = Math.max(...sameYearLetters.map(l => l.sequence || 0)) + 1;
@@ -44,7 +40,6 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const sequenceStr = sequence.toString().padStart(3, '0');
   const romanMonth = ROMAN_MONTHS[month];
   
-  // Generate the formatted number
   const letterNumber = `${sequenceStr}/MRP/${letterData.typeCode}/${romanMonth}/${year}`;
   
   const newLetter: Letter = {
@@ -64,7 +59,6 @@ export const saveLetter = (letterData: Partial<Letter>): Letter => {
   const updatedLetters = [newLetter, ...letters];
   localStorage.setItem(LETTERS_KEY, JSON.stringify(updatedLetters));
   
-  // Sync to Google Sheets
   syncToGoogle({
     action: 'saveLetter',
     data: newLetter
@@ -81,18 +75,14 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   const originalLetter = letters[index];
   const updatedLetter = { ...originalLetter, ...updates };
   
-  // Recalculate letter number only if type or date changed
-  // This ensures if you change a letter from Dec 2025 to Jan 2026, it gets a new number
   if (updates.date || updates.typeCode) {
     const dateObj = new Date(updatedLetter.date);
     const year = dateObj.getFullYear();
     const month = dateObj.getMonth() + 1;
     const romanMonth = ROMAN_MONTHS[month];
     
-    // Check if the year has changed
     const oldYear = new Date(originalLetter.date).getFullYear();
     if (year !== oldYear) {
-      // Re-calculate sequence for the new year
       const yearLetters = letters.filter(l => new Date(l.date).getFullYear() === year && l.id !== id);
       const newSequence = yearLetters.length > 0 ? Math.max(...yearLetters.map(l => l.sequence || 0)) + 1 : 1;
       updatedLetter.sequence = newSequence;
@@ -108,6 +98,28 @@ export const updateLetter = (id: string, updates: Partial<Letter>): Letter => {
   syncToGoogle({
     action: 'updateLetter',
     id: id,
+    data: updatedLetter
+  });
+  
+  return updatedLetter;
+};
+
+export const removeFileFromLetter = (letterId: string, fileName: string): Letter => {
+  const letters = getLetters();
+  const index = letters.findIndex(l => l.id === letterId);
+  if (index === -1) throw new Error('Letter not found');
+
+  const letter = letters[index];
+  const updatedFiles = letter.files.filter(f => f.name !== fileName);
+  
+  const updatedLetter = { ...letter, files: updatedFiles };
+  letters[index] = updatedLetter;
+  
+  localStorage.setItem(LETTERS_KEY, JSON.stringify(letters));
+  
+  syncToGoogle({
+    action: 'updateLetter',
+    id: letterId,
     data: updatedLetter
   });
   
