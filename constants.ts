@@ -26,13 +26,13 @@ export const LETTER_TYPES = [
   { code: LetterTypeCode.MISC, label: 'Others (MISC)' },
 ];
 
-// Global System Configuration
+// Global System Configuration - Updated with IDs from User Screenshot
 export const SYSTEM_CONFIG = {
   PORTAL_NAME: 'Multiportal',
   COMPANY_NAME: 'Multibangun',
   FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
   GOOGLE: {
-    // Exact URL from your screenshot
+    // These are now your hardcoded defaults
     SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxF55QunBjSuY6br68dxCgRkpsrEib4p13WOEs2X6FWJk08_ngJymuTZdl-qOrdSEew/exec',
     SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
     FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
