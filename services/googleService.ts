@@ -4,12 +4,11 @@ import { Letter } from '../types';
 
 /**
  * Sends data to the Google Apps Script using POST.
- * Note: Mode 'no-cors' is used because GAS does not support standard CORS for POST requests.
  */
 export const syncToGoogle = async (payload: any) => {
-  const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
-  const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
-  const folderId = SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
+  const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  const sheetId = localStorage.getItem('mrp_google_sheet_id') || SYSTEM_CONFIG.GOOGLE.SHEET_ID;
+  const folderId = localStorage.getItem('mrp_google_folder_id') || SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
 
   if (!scriptUrl || scriptUrl.includes('YOUR_SCRIPT_URL') || scriptUrl === '') {
     console.warn('[GoogleSync] No valid Script URL configured.');
@@ -17,10 +16,11 @@ export const syncToGoogle = async (payload: any) => {
   }
 
   try {
-    // We use text/plain to avoid pre-flight OPTIONS request which GAS doesn't handle well
-    await fetch(scriptUrl, {
+    // We use text/plain for the body to avoid pre-flight CORS preflights
+    // GAS handles JSON strings inside the request body even if the mime-type is text/plain
+    const response = await fetch(scriptUrl, {
       method: 'POST',
-      mode: 'no-cors', 
+      mode: 'no-cors', // Critical: GAS POST only works with no-cors or specialized redirects
       cache: 'no-cache',
       redirect: 'follow',
       headers: {
@@ -33,6 +33,9 @@ export const syncToGoogle = async (payload: any) => {
         timestamp: new Date().toISOString()
       }),
     });
+    
+    // Note: With no-cors, we can't read the response status, 
+    // but we can assume success if no network error occurred.
     return { status: 'dispatched' };
   } catch (error) {
     console.error('[GoogleSync] Cloud Save Failed:', error);
@@ -42,45 +45,37 @@ export const syncToGoogle = async (payload: any) => {
 
 /**
  * Fetches letters from the Google Sheet via GET.
- * CRITICAL: The GAS Deployment MUST be set to "Anyone".
  */
 export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
-  const scriptUrl = SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
-  const sheetId = SYSTEM_CONFIG.GOOGLE.SHEET_ID;
+  const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  const sheetId = localStorage.getItem('mrp_google_sheet_id') || SYSTEM_CONFIG.GOOGLE.SHEET_ID;
 
   if (!scriptUrl || scriptUrl === '' || scriptUrl.includes('YOUR_SCRIPT_URL')) {
-    console.warn('[GoogleSync] No Script URL detected.');
     return [];
   }
 
   try {
-    // Cache-busting prevents stale data on different computers
     const url = `${scriptUrl}?action=getLetters&sheetId=${sheetId}&t=${Date.now()}`;
     
     const response = await fetch(url, {
       method: 'GET',
-      mode: 'cors',
+      mode: 'cors', // GET requests support CORS if GAS is deployed correctly
       redirect: 'follow',
-      headers: {
-        'Accept': 'application/json',
-      }
     });
     
     if (!response.ok) {
-      throw new Error(`Cloud Error: ${response.status}`);
+      throw new Error(`HTTP_${response.status}`);
     }
     
-    const text = await response.text();
-    try {
-      const data = JSON.parse(text);
-      if (data && data.error) throw new Error(data.error);
-      return Array.isArray(data) ? data : [];
-    } catch (parseError) {
-      console.error('[GoogleSync] Server returned non-JSON. Deployment is likely not "Anyone".');
-      return [];
-    }
-  } catch (error) {
+    const data = await response.json();
+    if (data && data.error) throw new Error(data.error);
+    return Array.isArray(data) ? data : [];
+  } catch (error: any) {
     console.error('[GoogleSync] CONNECTION ERROR:', error);
+    // Rethrow a more descriptive error for the UI
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('CORS_OR_PERMISSION_DENIED');
+    }
     throw error; 
   }
 };
