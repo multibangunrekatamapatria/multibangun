@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import LetterArchive from './pages/LetterArchive';
@@ -12,7 +12,7 @@ import Layout from './components/Layout';
 import { User } from './types';
 import { fetchLettersFromGoogle } from './services/googleService';
 import { setLetters } from './services/dbService';
-import { Loader2, Database, AlertCircle, CloudOff, HelpCircle, ShieldAlert } from 'lucide-react';
+import { Loader2, Database, AlertCircle, CloudOff, Settings, ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,11 +32,14 @@ const App: React.FC = () => {
         setLetters(cloudData);
       }
       setIsLoading(false);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Cloud connection error:", err);
-      // Detailed diagnostics for "Failed to fetch"
-      setSyncError("Cloud Sync Failure: Connection to Google Master Sheet was blocked.");
-      setTimeout(() => setIsLoading(false), 1500);
+      if (err.message === 'CORS_OR_PERMISSION_DENIED') {
+        setSyncError("Google Sync Blocked: Permission or CORS error.");
+      } else {
+        setSyncError(`Cloud Sync Failure: ${err.message || 'Unknown network error'}`);
+      }
+      setIsLoading(false);
     }
   };
 
@@ -75,33 +78,33 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
-      {syncError && (
-        <div className="fixed top-0 left-0 right-0 z-[9999] bg-red-600 text-white px-6 py-6 flex flex-col md:flex-row items-center justify-center gap-6 shadow-2xl animate-in slide-in-from-top duration-700">
+      {syncError && user && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] bg-[#0f172a] text-white px-8 py-5 rounded-[2.5rem] flex items-center gap-6 shadow-2xl border border-white/10 animate-in slide-in-from-bottom-8 duration-500 max-w-[90vw]">
           <div className="flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-2xl">
-              <ShieldAlert size={28} />
+            <div className="bg-red-500/20 p-3 rounded-2xl text-red-400">
+              <ShieldAlert size={24} />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-1">Critical Connection Fault</p>
-              <p className="text-base font-black uppercase tracking-tight">Sync Failure: Google Apps Script returned 'Failed to fetch'.</p>
-              <p className="text-[9px] font-bold uppercase tracking-widest opacity-60 mt-1">Check Deployment -> "Who has access" must be set to "Anyone"</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Connection Interrupted</p>
+              <p className="text-sm font-black uppercase tracking-tight">{syncError}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button 
               onClick={() => window.location.reload()}
-              className="bg-white text-red-600 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg"
+              className="bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-white/5"
             >
-              <CloudOff size={16} /> Retry Connection
+              <CloudOff size={14} /> Retry
             </button>
-            <a 
-              href="https://script.google.com" 
-              target="_blank" 
-              rel="noreferrer"
-              className="bg-red-800 hover:bg-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-red-400/30"
-            >
-              <HelpCircle size={16} /> Verify Deployment
-            </a>
+            {user.role === 'admin' && (
+              <Link 
+                to="/admin" 
+                onClick={() => setSyncError(null)}
+                className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg"
+              >
+                <Settings size={14} /> Troubleshoot
+              </Link>
+            )}
           </div>
         </div>
       )}
