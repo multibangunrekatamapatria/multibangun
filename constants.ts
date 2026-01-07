@@ -32,15 +32,16 @@ export const SYSTEM_CONFIG = {
   COMPANY_NAME: 'Multibangun',
   FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
   GOOGLE: {
-    // UPDATED WITH YOUR NEW URL FROM THE SCREENSHOT
+    // Exact URL from your screenshot
     SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxF55QunBjSuY6br68dxCgRkpsrEib4p13WOEs2X6FWJk08_ngJymuTZdl-qOrdSEew/exec',
     SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
     FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
   }
 };
 
-/**
- * Formats an ISO or YYYY-MM-DD date string into dd/mm/yyyy
- */
 export const formatDateDisplay = (dateStr: string): string => {
-  if (!dateStr) return
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString('en-GB'); // dd/mm/yyyy
+};
