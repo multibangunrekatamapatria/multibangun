@@ -32,7 +32,8 @@ export const SYSTEM_CONFIG = {
   COMPANY_NAME: 'Multibangun',
   FULL_COMPANY_NAME: 'PT MULTIBANGUN REKATAMA PATRIA',
   GOOGLE: {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyxhTOOx7Qwovwb626u4oX_18SBlJR8z8fv1GUX2XrqHx5E-WdRmsBsxURUqAKSIBQfbw/exec',
+    // UPDATED WITH YOUR NEW URL FROM THE SCREENSHOT
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxF55QunBjSuY6br68dxCgRkpsrEib4p13WOEs2X6FWJk08_ngJymuTZdl-qOrdSEew/exec',
     SHEET_ID: '11vn4x2XHRsx-V2SThBoqNrXFuuZlGa1gG21jMT3HpdE',
     FOLDER_ID: '1Blv1USh7R2Bs3ENtQJyQOpiTH-9oZhp5'
   }
@@ -42,14 +43,4 @@ export const SYSTEM_CONFIG = {
  * Formats an ISO or YYYY-MM-DD date string into dd/mm/yyyy
  */
 export const formatDateDisplay = (dateStr: string): string => {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    const day = d.getDate().toString().padStart(2, '0');
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  } catch (e) {
-    return dateStr;
-  }
-};
+  if (!dateStr) return
