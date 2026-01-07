@@ -4,6 +4,7 @@ import { Letter } from '../types';
 
 /**
  * Sends data to the Google Apps Script using POST.
+ * Note: Browser POSTs to GAS often trigger "no-cors" mode requirements.
  */
 export const syncToGoogle = async (payload: any) => {
   const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
@@ -11,16 +12,14 @@ export const syncToGoogle = async (payload: any) => {
   const folderId = localStorage.getItem('mrp_google_folder_id') || SYSTEM_CONFIG.GOOGLE.FOLDER_ID;
 
   if (!scriptUrl || scriptUrl.includes('YOUR_SCRIPT_URL') || scriptUrl === '') {
-    console.warn('[GoogleSync] No valid Script URL configured.');
-    return;
+    return { status: 'skipped' };
   }
 
   try {
-    // We use text/plain for the body to avoid pre-flight CORS preflights
-    // GAS handles JSON strings inside the request body even if the mime-type is text/plain
-    const response = await fetch(scriptUrl, {
+    // We send as text/plain to avoid CORS pre-flight OPTIONS check which GAS doesn't support
+    await fetch(scriptUrl, {
       method: 'POST',
-      mode: 'no-cors', // Critical: GAS POST only works with no-cors or specialized redirects
+      mode: 'no-cors',
       cache: 'no-cache',
       redirect: 'follow',
       headers: {
@@ -34,17 +33,15 @@ export const syncToGoogle = async (payload: any) => {
       }),
     });
     
-    // Note: With no-cors, we can't read the response status, 
-    // but we can assume success if no network error occurred.
-    return { status: 'dispatched' };
+    return { status: 'success' };
   } catch (error) {
-    console.error('[GoogleSync] Cloud Save Failed:', error);
+    console.error('[CloudSync] POST Failure:', error);
     throw error;
   }
 };
 
 /**
- * Fetches letters from the Google Sheet via GET.
+ * Fetches data via GET. 
  */
 export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
   const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
@@ -59,8 +56,8 @@ export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
     
     const response = await fetch(url, {
       method: 'GET',
-      mode: 'cors', // GET requests support CORS if GAS is deployed correctly
-      redirect: 'follow',
+      mode: 'cors',
+      redirect: 'follow', // Crucial for GAS redirects
     });
     
     if (!response.ok) {
@@ -68,15 +65,27 @@ export const fetchLettersFromGoogle = async (): Promise<Letter[]> => {
     }
     
     const data = await response.json();
-    if (data && data.error) throw new Error(data.error);
     return Array.isArray(data) ? data : [];
   } catch (error: any) {
-    console.error('[GoogleSync] CONNECTION ERROR:', error);
-    // Rethrow a more descriptive error for the UI
+    console.error('[CloudSync] GET Failure:', error);
     if (error.message.includes('Failed to fetch')) {
-      throw new Error('CORS_OR_PERMISSION_DENIED');
+      throw new Error('NETWORK_OR_CORS_BLOCKED');
     }
     throw error; 
+  }
+};
+
+export const pingCloud = async (): Promise<boolean> => {
+  const scriptUrl = localStorage.getItem('mrp_google_script_url') || SYSTEM_CONFIG.GOOGLE.SCRIPT_URL;
+  if (!scriptUrl || scriptUrl === '') return false;
+
+  try {
+    const url = `${scriptUrl}?action=ping`;
+    const response = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow' });
+    const text = await response.text();
+    return text === 'pong';
+  } catch {
+    return false;
   }
 };
 
